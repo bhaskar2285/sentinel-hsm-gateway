@@ -1,0 +1,11 @@
+# Dev profile: disables JWT, permits all endpoints, grants all OP_* authorities.
+# DO NOT USE IN PROD.
+sentinel:
+  security:
+    dev-mode: true
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:

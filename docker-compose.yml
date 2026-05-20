@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+    ports:
+      - "5434:5432"
+    volumes:
+      - sentinel-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    build: .
+    container_name: sentinel-hsm-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL:  jdbc:postgresql://postgres:5432/sentinel
+      DB_USER: sentinel
+      DB_PASS: sentinel
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+    ports:
+      - "8090:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Reference: existing thales-go-sim instances are run elsewhere (thales-artemis-lb compose).
+  # Point this gateway at them via hsm_node table rows pointing to host.docker.internal:<sim-port>.
+
+volumes:
+  sentinel-pg-data:

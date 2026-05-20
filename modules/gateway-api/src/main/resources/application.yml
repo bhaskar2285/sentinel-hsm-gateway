@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: sentinel-hsm-gateway
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sentinel}
+    username: ${DB_USER:sentinel}
+    password: ${DB_PASS:sentinel}
+    hikari:
+      maximum-pool-size: 20
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH_ISSUER:http://localhost:9000/realms/xenticate}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+sentinel:
+  thales:
+    header: SENT
+    connect-timeout-ms: 5000
+    read-timeout-ms: 10000
+    pool-max-per-node: 8
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.isc.sentinel: INFO

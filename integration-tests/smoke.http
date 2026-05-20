@@ -1,0 +1,35 @@
+### Health
+GET http://localhost:8080/actuator/health
+
+### Login (get JWT from xenticate-auth)
+# POST {{XENTICATE_AUTH_URL}}/login ...
+@token = REPLACE_ME
+
+### Generate RSA key pair (EI/EJ)
+POST http://localhost:8080/api/v1/keys/rsa
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "label": "test-rsa-2048",
+  "modulusBits": 2048,
+  "keyType": "2",
+  "publicExponentHex": "010001",
+  "usage": "WRAP,UNWRAP"
+}
+
+### List keys
+GET http://localhost:8080/api/v1/keys
+Authorization: Bearer {{token}}
+
+### Decrypt (M2/M3)
+POST http://localhost:8080/api/v1/crypto/decrypt
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "keyId": "REPLACE-UUID",
+  "ciphertextHex": "DEADBEEFCAFEBABE",
+  "mode": "01",
+  "iv": "0000000000000000"
+}
