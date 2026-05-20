@@ -23,11 +23,20 @@ public class ThalesTransport {
     private final int connectTimeoutMs;
     private final int readTimeoutMs;
     private final int maxPerNode;
+    private final boolean tls;
+    private final boolean tlsInsecureSkipVerify;
 
     public ThalesTransport(int connectTimeoutMs, int readTimeoutMs, int maxPerNode) {
-        this.connectTimeoutMs = connectTimeoutMs;
-        this.readTimeoutMs = readTimeoutMs;
-        this.maxPerNode = maxPerNode;
+        this(connectTimeoutMs, readTimeoutMs, maxPerNode, false, false);
+    }
+
+    public ThalesTransport(int connectTimeoutMs, int readTimeoutMs, int maxPerNode,
+                           boolean tls, boolean tlsInsecureSkipVerify) {
+        this.connectTimeoutMs       = connectTimeoutMs;
+        this.readTimeoutMs          = readTimeoutMs;
+        this.maxPerNode             = maxPerNode;
+        this.tls                    = tls;
+        this.tlsInsecureSkipVerify  = tlsInsecureSkipVerify;
     }
 
     private GenericObjectPool<Socket> poolFor(HsmNodeRef node) {
@@ -39,7 +48,8 @@ public class ThalesTransport {
             cfg.setTestOnBorrow(true);
             cfg.setTestWhileIdle(true);
             return new GenericObjectPool<>(
-                new ThalesSocketFactory(node.getHost(), node.getPort(), connectTimeoutMs, readTimeoutMs),
+                new ThalesSocketFactory(node.getHost(), node.getPort(),
+                    connectTimeoutMs, readTimeoutMs, tls, tlsInsecureSkipVerify),
                 cfg);
         });
     }

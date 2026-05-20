@@ -42,9 +42,20 @@ public class KeyService {
 
         String keyId = null;
         String publicKey = null;
+        String kcv = null;
         if ("OK".equals(resp.getStatus())) {
             publicKey = (String) resp.getResult().get("publicKey");
             String privUnderLmk = (String) resp.getResult().get("privateKeyUnderLmk");
+
+            // KCV for RSA = first 6 hex of SHA-256(publicKeyDER) — fingerprint, public-safe.
+            if (publicKey != null) {
+                try {
+                    byte[] pub = java.util.HexFormat.of().parseHex(publicKey);
+                    java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                    byte[] digest = md.digest(pub);
+                    kcv = java.util.HexFormat.of().withUpperCase().formatHex(digest).substring(0, 6);
+                } catch (Exception ignored) { /* leave kcv null on parse error */ }
+            }
 
             HsmKey saved = keyRepo.save(HsmKey.builder()
                 .keyUuid(UUID.randomUUID())
@@ -55,6 +66,7 @@ public class KeyService {
                 .usage(req.getUsage())
                 .ownerUserId(userId)
                 .ownerOrg(req.getOwnerOrg())
+                .kcv(kcv)
                 .vendorOrigin("thales")
                 .encryptedBlob(privUnderLmk == null ? null : privUnderLmk.getBytes(StandardCharsets.US_ASCII))
                 .status("ACTIVE")
@@ -66,6 +78,7 @@ public class KeyService {
         return RsaKeyGenResponse.builder()
             .keyId(keyId)
             .publicKey(publicKey)
+            .kcv(kcv)
             .status(resp.getStatus())
             .errCode(resp.getErrCode())
             .errText(resp.getErrText())

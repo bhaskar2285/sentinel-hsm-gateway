@@ -33,11 +33,13 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
 
     public ThalesVendorAdapter(
         @Value("${sentinel.thales.connect-timeout-ms:5000}") int connectTimeoutMs,
-        @Value("${sentinel.thales.read-timeout-ms:10000}") int readTimeoutMs,
-        @Value("${sentinel.thales.pool-max-per-node:8}") int maxPerNode,
-        @Value("${sentinel.thales.header:SENT}") String headerText
+        @Value("${sentinel.thales.read-timeout-ms:10000}")   int readTimeoutMs,
+        @Value("${sentinel.thales.pool-max-per-node:8}")     int maxPerNode,
+        @Value("${sentinel.thales.header:SENT}")             String headerText,
+        @Value("${sentinel.thales.tls.enabled:false}")       boolean tls,
+        @Value("${sentinel.thales.tls.insecure-skip-verify:false}") boolean tlsInsecureSkipVerify
     ) {
-        this.transport = new ThalesTransport(connectTimeoutMs, readTimeoutMs, maxPerNode);
+        this.transport = new ThalesTransport(connectTimeoutMs, readTimeoutMs, maxPerNode, tls, tlsInsecureSkipVerify);
         this.header = new HsmHeader(headerText);
     }
 
