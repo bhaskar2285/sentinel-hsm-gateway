@@ -6,6 +6,7 @@ import KeyCreateSym from './pages/KeyCreateSym';
 import KeyImport from './pages/KeyImport';
 import KeyDetail from './pages/KeyDetail';
 import CryptoPlayground from './pages/CryptoPlayground';
+import CryptoWizard from './pages/CryptoWizard';
 import Pools from './pages/Pools';
 import Audit from './pages/Audit';
 import RawConsole from './pages/RawConsole';
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/keys/import" element={<KeyImport />} />
         <Route path="/keys/:keyId" element={<KeyDetail />} />
         <Route path="/crypto" element={<CryptoPlayground />} />
+        <Route path="/wizard" element={<CryptoWizard />} />
         <Route path="/pools" element={<Pools />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/console" element={<RawConsole />} />

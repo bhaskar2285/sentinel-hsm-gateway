@@ -5,6 +5,7 @@ import {
   PlusCircle,
   Download,
   Cpu,
+  Play,
   Server,
   ScrollText,
   Terminal,
@@ -26,8 +27,9 @@ const navSections = [
   {
     label: 'Crypto',
     items: [
-      { to: '/crypto',  label: 'Decrypt',  code: 'M2/M3', icon: Cpu },
-      { to: '/console', label: 'Raw Wire', code: null,    icon: Terminal },
+      { to: '/wizard',  label: 'Walkthrough', code: 'CHAIN', icon: Play },
+      { to: '/crypto',  label: 'Decrypt',     code: 'M2/M3', icon: Cpu },
+      { to: '/console', label: 'Raw Wire',    code: null,    icon: Terminal },
     ],
   },
   {
