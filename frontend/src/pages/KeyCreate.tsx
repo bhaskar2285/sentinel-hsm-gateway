@@ -34,14 +34,14 @@ export default function KeyCreate() {
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+            className="input"
           />
         </Field>
         <Field label="Modulus bits">
           <select
             value={bits}
             onChange={(e) => setBits(Number(e.target.value))}
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+            className="input"
           >
             <option value={2048}>2048</option>
             <option value={3072}>3072</option>
@@ -52,7 +52,7 @@ export default function KeyCreate() {
           <select
             value={keyType}
             onChange={(e) => setKeyType(e.target.value)}
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+            className="input"
           >
             <option value="0">Signature only</option>
             <option value="1">Encipherment only</option>
@@ -63,7 +63,7 @@ export default function KeyCreate() {
       <button
         onClick={submit}
         disabled={busy}
-        className="rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 text-sm"
+        className="rounded-md btn-primary disabled:opacity-50"
       >
         {busy ? 'Generating…' : 'Generate'}
       </button>

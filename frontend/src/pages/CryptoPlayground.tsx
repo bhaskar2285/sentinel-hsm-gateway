@@ -26,13 +26,13 @@ export default function CryptoPlayground() {
         value={keyId}
         onChange={(e) => setKeyId(e.target.value)}
         placeholder="Key ID (UUID)"
-        className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono"
+        className="input font-mono"
       />
       <div className="grid grid-cols-2 gap-2">
         <select
           value={mode}
           onChange={(e) => setMode(e.target.value)}
-          className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+          className="input"
         >
           <option value="00">ECB</option>
           <option value="01">CBC</option>
@@ -42,16 +42,16 @@ export default function CryptoPlayground() {
           value={iv}
           onChange={(e) => setIv(e.target.value)}
           placeholder="IV (hex, CBC only)"
-          className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono"
+          className="input font-mono"
         />
       </div>
       <textarea
         value={ciphertext}
         onChange={(e) => setCiphertext(e.target.value)}
         placeholder="Ciphertext (hex)"
-        className="w-full h-24 rounded-md bg-slate-50 border border-slate-200 p-2 text-xs font-mono"
+        className="textarea h-24 text-xs"
       />
-      <button onClick={run} className="rounded-md bg-sky-600 hover:bg-sky-500 px-4 py-2 text-sm">
+      <button onClick={run} className="rounded-md btn-primary">
         Decrypt
       </button>
       {plaintext && (

@@ -53,13 +53,7 @@ export default function Pools() {
                       {p.vendor} · {p.lbStrategy}
                     </div>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded font-mono ${
-                      upCount > 0
-                        ? 'bg-sky-500/15 text-sky-700'
-                        : 'bg-red-500/15 text-red-700'
-                    }`}
-                  >
+                  <span className={upCount > 0 ? 'badge-ok' : 'badge-err'}>
                     {upCount}/{poolNodes.length} UP
                   </span>
                 </div>
@@ -86,7 +80,7 @@ export default function Pools() {
             </thead>
             <tbody>
               {(hsms.data ?? []).map((n) => (
-                <tr key={n.id} className="border-t border-slate-200 hover:bg-white shadow-sm">
+                <tr key={n.id} className="border-t border-slate-200 hover:bg-slate-50">
                   <td className="px-4 py-2"><StatusBadge health={n.health} enabled={n.enabled} /></td>
                   <td className="px-4 py-2 font-mono text-xs">{n.vendor}</td>
                   <td className="px-4 py-2 font-mono text-xs">{n.host}</td>
@@ -116,10 +110,10 @@ function StatusBadge({ health, enabled }: { health: string; enabled: boolean }) 
     );
   }
   const map: Record<string, { dot: string; text: string; label: string }> = {
-    UP:       { dot: 'bg-sky-500 shadow-[0_0_6px] shadow-sky-500', text: 'text-sky-700', label: 'ONLINE' },
-    DOWN:     { dot: 'bg-red-400 shadow-[0_0_6px] shadow-red-400',         text: 'text-red-700',     label: 'OFFLINE' },
-    DRAINING: { dot: 'bg-amber-400',                                       text: 'text-amber-300',   label: 'DRAINING' },
-    UNKNOWN:  { dot: 'bg-slate-400 animate-pulse',                          text: 'text-slate-600',    label: 'PROBING' },
+    UP:       { dot: 'bg-emerald-500 shadow-[0_0_6px] rgb(16_185_129_/_0.6)',  text: 'text-emerald-700', label: 'ONLINE' },
+    DOWN:     { dot: 'bg-rose-500 shadow-[0_0_6px] rgb(244_63_94_/_0.6)',      text: 'text-rose-700',    label: 'OFFLINE' },
+    DRAINING: { dot: 'bg-amber-500',                                            text: 'text-amber-700',   label: 'DRAINING' },
+    UNKNOWN:  { dot: 'bg-slate-400 animate-pulse',                              text: 'text-slate-600',   label: 'PROBING' },
   };
   const s = map[health] ?? map.UNKNOWN;
   return (

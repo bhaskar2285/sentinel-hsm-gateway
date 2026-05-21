@@ -17,10 +17,10 @@ export default function HsmStatusWidget() {
   const allDn = total > 0 && up === 0;
 
   const dot = allUp
-    ? 'bg-sky-500 shadow-[0_0_8px] shadow-sky-500'
+    ? 'bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60 animate-pulse-ring'
     : allDn
-    ? 'bg-red-400 shadow-[0_0_8px] shadow-red-400'
-    : 'bg-amber-400 shadow-[0_0_8px] shadow-amber-400';
+    ? 'bg-rose-500 shadow-[0_0_8px] shadow-rose-500/60'
+    : 'bg-amber-500 shadow-[0_0_8px] shadow-amber-500/60';
 
   const label = total === 0
     ? 'No HSMs'

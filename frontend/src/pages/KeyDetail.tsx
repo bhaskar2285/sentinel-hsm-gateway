@@ -83,7 +83,7 @@ export default function KeyDetail() {
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value as any)}
-              className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+              className="input"
             >
               <option value="TR31_B">TR-31 Format B (3DES KBPK)</option>
               <option value="TR31_D">TR-31 Format D (AES KBPK)</option>
@@ -97,7 +97,7 @@ export default function KeyDetail() {
               value={kbpkKeyId}
               onChange={(e) => setKbpkKeyId(e.target.value)}
               disabled={format === 'RAW'}
-              className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm disabled:opacity-40"
+              className="input disabled:opacity-40"
             >
               <option value="">{format === 'RAW' ? 'N/A (Raw mode)' : '— pick a key —'}</option>
               {kbpkCandidates.map((k) => (
@@ -118,7 +118,7 @@ export default function KeyDetail() {
         <button
           onClick={doExport}
           disabled={busy}
-          className="rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 text-sm"
+          className="rounded-md btn-primary disabled:opacity-50"
         >
           {busy ? 'Exporting…' : 'Export'}
         </button>

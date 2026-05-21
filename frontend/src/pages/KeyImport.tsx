@@ -51,14 +51,14 @@ export default function KeyImport() {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="e.g. zpk-prod-01"
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+            className="input"
           />
         </Field>
         <Field label="Key Type">
           <select
             value={keyType}
             onChange={(e) => setKeyType(e.target.value)}
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+            className="input"
           >
             <option>ZPK</option>
             <option>ZMK</option>
@@ -77,7 +77,7 @@ export default function KeyImport() {
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
-              className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+              className="input"
             >
               <option value="0">0 — RSA</option>
               <option value="1">1 — RSA-OAEP</option>
@@ -87,7 +87,7 @@ export default function KeyImport() {
             <select
               value={hashId}
               onChange={(e) => setHashId(e.target.value)}
-              className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
+              className="input"
             >
               <option value="01">01 — SHA-1</option>
               <option value="02">02 — SHA-224</option>
@@ -101,7 +101,7 @@ export default function KeyImport() {
           <textarea
             value={wrappingPublicKey}
             onChange={(e) => setWpk(e.target.value)}
-            className="w-full h-24 rounded-md bg-slate-50 border border-slate-200 p-2 text-xs font-mono"
+            className="textarea h-24 text-xs"
             placeholder="30820122300D06092A864886F70D01010105000382010F00..."
           />
         </Field>
@@ -109,7 +109,7 @@ export default function KeyImport() {
           <textarea
             value={wrappedKey}
             onChange={(e) => setWk(e.target.value)}
-            className="w-full h-24 rounded-md bg-slate-50 border border-slate-200 p-2 text-xs font-mono"
+            className="textarea h-24 text-xs"
             placeholder="AABBCCDDEEFF00112233445566778899..."
           />
         </Field>
@@ -117,14 +117,14 @@ export default function KeyImport() {
           <input
             value={usage}
             onChange={(e) => setUsage(e.target.value)}
-            className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono"
+            className="input font-mono"
           />
         </Field>
       </div>
       <button
         onClick={submit}
         disabled={busy}
-        className="rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 text-sm"
+        className="rounded-md btn-primary disabled:opacity-50"
       >
         {busy ? 'Importing…' : 'Import'}
       </button>

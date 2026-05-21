@@ -2,7 +2,136 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --color-bg:       #ffffff;
+  --color-surface:  #f8fafc;
+  --color-border:   #e2e8f0;
+  --color-text:     #0f172a;
+  --color-text-mut: #475569;
+  --color-text-dim: #94a3b8;
+  --color-brand:    #0284c7;
+  --color-brand-h:  #0369a1;
+}
 
 html, body, #root { height: 100%; }
-body { background: #ffffff; color: #0f172a; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv05", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: rgb(2 132 199 / 0.2); }
+
+@layer base {
+  h1, h2, h3, h4 { color: var(--color-text); letter-spacing: -0.015em; }
+  h1 { font-weight: 600; }
+  code, pre, .font-mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+}
+
+@layer components {
+  /* ---------- buttons ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5
+           rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-all duration-150
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-sky-600 text-white shadow-sm
+           hover:bg-sky-700 hover:shadow
+           active:bg-sky-800
+           focus-visible:ring-sky-500/40
+           disabled:hover:bg-sky-600 disabled:hover:shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-slate-700 border border-slate-200 shadow-sm
+           hover:bg-slate-50 hover:border-slate-300
+           focus-visible:ring-slate-400/30;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-600
+           hover:bg-slate-100 hover:text-slate-900
+           focus-visible:ring-slate-400/30;
+  }
+  .btn-danger {
+    @apply btn bg-rose-600 text-white shadow-sm
+           hover:bg-rose-700
+           focus-visible:ring-rose-500/40;
+  }
+
+  /* ---------- form fields ---------- */
+  .input, .select, .textarea {
+    @apply w-full rounded-lg bg-white border border-slate-200
+           px-3 py-2 text-sm text-slate-900
+           placeholder:text-slate-400
+           shadow-[inset_0_1px_0_rgb(15_23_42_/_0.02)]
+           transition-colors
+           focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20;
+  }
+  .textarea { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .label    { @apply block text-xs font-medium text-slate-600 mb-1.5; }
+
+  /* ---------- surfaces ---------- */
+  .card {
+    @apply bg-white rounded-xl border border-slate-200 shadow-card;
+  }
+  .card-interactive {
+    @apply card transition-all duration-150 cursor-pointer
+           hover:shadow-card-hover hover:border-slate-300;
+  }
+  .surface { @apply bg-slate-50 border border-slate-200 rounded-lg; }
+  .divider { @apply border-t border-slate-200; }
+
+  /* ---------- badges / chips ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5
+           rounded-md text-[11px] font-medium font-mono uppercase tracking-wide;
+  }
+  .badge-ok    { @apply badge bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200; }
+  .badge-warn  { @apply badge bg-amber-50  text-amber-700  ring-1 ring-inset ring-amber-200;  }
+  .badge-err   { @apply badge bg-rose-50   text-rose-700   ring-1 ring-inset ring-rose-200;   }
+  .badge-info  { @apply badge bg-sky-50    text-sky-700    ring-1 ring-inset ring-sky-200;    }
+  .badge-mute  { @apply badge bg-slate-100 text-slate-600  ring-1 ring-inset ring-slate-200;  }
+
+  .chip-mono {
+    @apply inline-flex items-center px-1.5 py-0.5
+           bg-slate-50 border border-slate-200 rounded
+           font-mono text-[11px] text-slate-600;
+  }
+
+  /* ---------- nav ---------- */
+  .nav-link {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium
+           text-slate-600 transition-colors duration-100
+           hover:bg-slate-100 hover:text-slate-900;
+  }
+  .nav-link-active {
+    @apply bg-sky-50 text-sky-700 hover:bg-sky-50 hover:text-sky-700
+           shadow-[inset_2px_0_0_0_theme(colors.sky.600)];
+  }
+
+  /* ---------- tables ---------- */
+  .table-wrap { @apply rounded-xl border border-slate-200 bg-white overflow-hidden shadow-card; }
+  .table-head { @apply bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-semibold; }
+  .table-row  { @apply border-t border-slate-100 transition-colors hover:bg-slate-50; }
+  .table-row:first-child { @apply border-t-0; }
+
+  /* ---------- brand ---------- */
+  .wordmark {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    @apply font-semibold tracking-tight text-slate-900;
+  }
+}
+
+/* faint dotted noise to give white background atmosphere */
+.atmo {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(15 23 42 / 0.04) 1px, transparent 0);
+  background-size: 24px 24px;
+}

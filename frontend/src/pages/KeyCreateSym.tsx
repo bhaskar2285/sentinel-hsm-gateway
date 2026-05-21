@@ -70,13 +70,13 @@ export default function KeyCreateSym() {
       <div className="space-y-3">
         <Field label="Label">
           <input value={label} onChange={(e) => setLabel(e.target.value)}
-                 className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm"
+                 className="input"
                  placeholder="e.g. zpk-acquirer-jan2026"/>
         </Field>
 
         <Field label="Key family">
           <select value={keyType} onChange={(e) => setKeyType(e.target.value)}
-                  className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm">
+                  className="input">
             {KEY_TYPES.map((t) => (
               <option key={t.code} value={t.code}>{t.code} — {t.name}: {t.desc}</option>
             ))}
@@ -85,14 +85,14 @@ export default function KeyCreateSym() {
 
         <Field label="Algorithm / length (LMK scheme)">
           <select value={keyScheme} onChange={(e) => setScheme(e.target.value)}
-                  className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm">
+                  className="input">
             {SCHEMES.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
           </select>
         </Field>
 
         <Field label="Mode">
           <select value={mode} onChange={(e) => setMode(e.target.value)}
-                  className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm">
+                  className="input">
             <option value="0">0 — under LMK only</option>
             <option value="1">1 — under LMK + ZMK-wrapped copy</option>
           </select>
@@ -102,7 +102,7 @@ export default function KeyCreateSym() {
           <>
             <Field label="ZMK (wraps the new key for transport)">
               <select value={zmkKeyId} onChange={(e) => setZmkKeyId(e.target.value)}
-                      className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm">
+                      className="input">
                 <option value="">— pick a ZMK —</option>
                 {zmkList.data?.map((k) => (
                   <option key={k.keyId} value={k.keyId}>{k.label} ({k.keyId.slice(0, 8)}…)</option>
@@ -115,7 +115,7 @@ export default function KeyCreateSym() {
 
             <Field label="Output scheme (ZMK copy)">
               <select value={outScheme} onChange={(e) => setOut(e.target.value)}
-                      className="w-full rounded-md bg-white border border-slate-200 px-3 py-2 text-sm">
+                      className="input">
                 {SCHEMES.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </Field>
@@ -124,7 +124,7 @@ export default function KeyCreateSym() {
       </div>
 
       <button onClick={submit} disabled={busy}
-              className="rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 text-sm text-white">
+              className="rounded-md btn-primary disabled:opacity-50 text-white">
         {busy ? 'Generating…' : 'Generate'}
       </button>
     </div>

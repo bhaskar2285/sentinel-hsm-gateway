@@ -48,18 +48,18 @@ export default function Audit() {
 
       <div className="grid grid-cols-4 gap-3 text-sm">
         <input value={op}     onChange={(e) => setOp(e.target.value)}     placeholder="op (RSA_KEY_GEN…)"
-               className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2"/>
+               className="input"/>
         <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="userId"
-               className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2"/>
+               className="input"/>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
-               className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+               className="input">
           <option value="">— status —</option>
           <option value="OK">OK</option>
           <option value="ERROR">ERROR</option>
           <option value="TIMEOUT">TIMEOUT</option>
         </select>
         <select value={vendor} onChange={(e) => setVendor(e.target.value)}
-               className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+               className="input">
           <option value="">— vendor —</option>
           <option value="THALES">THALES</option>
           <option value="UTIMACO">UTIMACO</option>
@@ -67,7 +67,7 @@ export default function Audit() {
       </div>
 
       <button onClick={() => { setPage(0); refetch(); }}
-              className="rounded-md bg-sky-600 hover:bg-sky-500 px-4 py-2 text-sm">
+              className="rounded-md btn-primary">
         Search
       </button>
 

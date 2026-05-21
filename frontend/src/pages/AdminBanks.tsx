@@ -99,7 +99,7 @@ export default function AdminBanks() {
               <div className="text-xs text-slate-600 mb-1">Auth method</div>
               <select value={draft.loginMethodType ?? 'DB'}
                       onChange={(e) => setDraft({ ...draft, loginMethodType: e.target.value })}
-                      className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+                      className="w-full input">
                 <option value="DB">DB (bcrypt)</option>
                 <option value="LDAP">LDAP bind</option>
                 <option value="MSAD">Active Directory</option>
@@ -117,7 +117,7 @@ export default function AdminBanks() {
           </div>
           <button onClick={() => createBank.mutate(draft)}
                   disabled={!draft.code || !draft.name || createBank.isPending}
-                  className="rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 text-sm">
+                  className="rounded-md btn-primary disabled:opacity-50">
             {createBank.isPending ? 'Creating…' : 'Create bank'}
           </button>
         </div>
@@ -152,7 +152,7 @@ function Field({ label, value, onChange }: { label: string; value?: string; onCh
     <label>
       <div className="text-xs text-slate-600 mb-1">{label}</div>
       <input value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-             className="w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2"/>
+             className="w-full input"/>
     </label>
   );
 }
