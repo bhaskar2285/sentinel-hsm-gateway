@@ -12,3 +12,9 @@ UPDATE hsm_key
    SET status = 'INVALID'
  WHERE status <> 'INVALID'
    AND (encrypted_blob IS NULL OR octet_length(encrypted_blob) = 0);
+
+-- New SAM action for the A0/A1 symmetric keygen endpoint (moved from V3
+-- to keep V3 checksum stable for envs that already applied it).
+INSERT INTO isc_sam_action (name, description) VALUES
+    ('KEY_CREATE_SYM', 'Generate symmetric key (A0/A1)')
+    ON CONFLICT (name) DO NOTHING;
