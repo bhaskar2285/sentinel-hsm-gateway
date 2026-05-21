@@ -350,6 +350,7 @@ CREATE INDEX ix_audit_staff ON hsm_command_audit(sam_staff_id);
 -- ---------------------------------------------------------------------
 INSERT INTO isc_sam_action (name, description) VALUES
     ('KEY_CREATE_RSA',  'Generate RSA keypair (EI/EJ)'),
+    ('KEY_CREATE_SYM',  'Generate symmetric key (A0/A1)'),
     ('KEY_IMPORT',      'Import wrapped key (GI/GJ)'),
     ('KEY_EXPORT',      'Export key under KBPK/ZMK (A8/A9)'),
     ('KEY_READ',        'List/view keys'),

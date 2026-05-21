@@ -180,6 +180,52 @@ public final class Phase1Builder {
     }
 
     // =====================================================================
+    // A0 — Generate a (Symmetric) Key under LMK
+    // Body: Mode(1A) + KeyType(3N) + KeyScheme(1A)
+    //       [+ ZmkScheme(1A) + ZmkUnderLmk(hex) + OutScheme(1A) if mode=1]
+    // Mode '0' = key under LMK only; '1' = key + ZMK-wrapped copy.
+    // =====================================================================
+
+    public static HsmWireMessage buildA0(HsmHeader header, Map<String, Object> params) {
+        String mode      = (String) params.getOrDefault("mode", "0");
+        String keyType   = (String) params.getOrDefault("keyType", "001");
+        String keyScheme = (String) params.getOrDefault("keyScheme", "U");
+
+        StringBuilder b = new StringBuilder();
+        b.append(mode).append(keyType).append(keyScheme);
+
+        if ("1".equals(mode)) {
+            String zmkScheme = (String) params.getOrDefault("zmkScheme", "U");
+            String zmkUnder  = ((String) params.get("zmkUnderLmk")).toUpperCase();
+            String outScheme = (String) params.getOrDefault("outScheme", "U");
+            b.append(zmkScheme).append(zmkUnder).append(outScheme);
+        }
+        return new HsmWireMessage(header, "A0", b.toString().getBytes(StandardCharsets.US_ASCII), null);
+    }
+
+    public static Map<String, Object> parseA0(byte[] body) {
+        String s = new String(body, StandardCharsets.US_ASCII);
+        if (!s.startsWith("A0") || s.length() < 7) {
+            throw new IllegalArgumentException("A0 body malformed");
+        }
+        int pos = 2;
+        Map<String, Object> p = new HashMap<>();
+        String mode = s.substring(pos, pos + 1); pos += 1;
+        p.put("mode", mode);
+        p.put("keyType",   s.substring(pos, pos + 3)); pos += 3;
+        p.put("keyScheme", s.substring(pos, pos + 1)); pos += 1;
+
+        if ("1".equals(mode) && pos < s.length()) {
+            String zmkScheme = s.substring(pos, pos + 1); pos += 1;
+            int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+            p.put("zmkScheme", zmkScheme);
+            p.put("zmkUnderLmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
+            p.put("outScheme", s.substring(pos, pos + 1));
+        }
+        return p;
+    }
+
+    // =====================================================================
     // B4 — Form Key Block (TR-31 / X9.143 wrap by HSM)
     // Body: KbpkType(3H) + KeyType(3H) + KbpkScheme(1A) + KbpkUnderLmk(hex)
     //     + KeyScheme(1A) + KeyUnderLmk(hex) + Format(1A) + Usage(2A)

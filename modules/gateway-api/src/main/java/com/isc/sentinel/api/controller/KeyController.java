@@ -27,6 +27,12 @@ public class KeyController {
         return keyService.generateRsa(req, userOf(auth));
     }
 
+    @PostMapping("/symmetric")
+    @PreAuthorize("hasAuthority('OP_KEY_CREATE_SYM')")
+    public SymKeyGenResponse generateSymmetric(@Valid @RequestBody SymKeyGenRequest req, Authentication auth) {
+        return keyService.generateSymmetric(req, userOf(auth));
+    }
+
     @PostMapping("/import-rsa-wrapped")
     @PreAuthorize("hasAuthority('OP_KEY_IMPORT')")
     public KeyImportResponse importRsaWrapped(@Valid @RequestBody ImportRsaWrappedRequest req, Authentication auth) {

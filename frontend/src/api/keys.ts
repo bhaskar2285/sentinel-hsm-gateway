@@ -27,6 +27,17 @@ export const keysApi = {
     ownerOrg?: string;
   }) => api.post('/keys/rsa', body).then((r) => r.data),
 
+  generateSymmetric: (body: {
+    label: string;
+    keyType?: string;
+    keyScheme?: string;
+    mode?: string;
+    zmkKeyId?: string;
+    outScheme?: string;
+    usage?: string;
+    ownerOrg?: string;
+  }) => api.post('/keys/symmetric', body).then((r) => r.data),
+
   importRsaWrapped: (body: {
     label: string;
     wrappingPublicKey: string;

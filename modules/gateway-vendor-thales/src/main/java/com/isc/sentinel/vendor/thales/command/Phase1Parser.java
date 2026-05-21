@@ -52,6 +52,7 @@ public final class Phase1Parser {
         switch (respCode) {
             case "EJ" -> parseEJBody(s, pos, fields);
             case "GJ" -> parseGJBody(s, pos, fields);
+            case "A1" -> parseA1Body(s, pos, fields);
             case "A9" -> parseA9Body(s, pos, fields);
             case "B5" -> parseB5Body(s, pos, fields);
             case "M3" -> parseM3Body(s, pos, fields);
@@ -118,6 +119,44 @@ public final class Phase1Parser {
         String kcv     = ((String) fields.get("kcv")).toUpperCase();
         String body = "GJ" + errCode + keyType + scheme + key + kcv;
         return body.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    // =====================================================================
+    // A1 — Generate Key response
+    // Body: Scheme(1A) + KeyUnderLmk(hex per scheme) + [zmkScheme(1A) + KeyUnderZmk(hex)]? + KCV(6H)
+    // Mode '1' from request adds the ZMK-wrapped copy block before KCV.
+    // =====================================================================
+
+    private static void parseA1Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
+        String scheme = s.substring(pos, pos + 1); pos += 1;
+        f.put("scheme", scheme);
+        int hex = KeyScheme.hexLenForScheme(scheme.charAt(0));
+        f.put("keyUnderLmk", s.substring(pos, pos + hex)); pos += hex;
+
+        int remaining = s.length() - pos;
+        if (remaining > 6) {
+            String zmkScheme = s.substring(pos, pos + 1); pos += 1;
+            f.put("zmkScheme", zmkScheme);
+            int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+            f.put("keyUnderZmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
+        }
+        f.put("kcv", s.substring(pos, pos + 6));
+    }
+
+    public static byte[] buildA1(String errCode, Map<String, Object> fields) {
+        if (!"00".equals(errCode)) return ("A1" + errCode).getBytes(StandardCharsets.US_ASCII);
+        String scheme = (String) fields.getOrDefault("scheme", "U");
+        String key    = ((String) fields.get("keyUnderLmk")).toUpperCase();
+        String kcv    = ((String) fields.get("kcv")).toUpperCase();
+        StringBuilder b = new StringBuilder();
+        b.append("A1").append(errCode).append(scheme).append(key);
+        if (fields.containsKey("keyUnderZmk")) {
+            b.append((String) fields.getOrDefault("zmkScheme", "U"))
+             .append(((String) fields.get("keyUnderZmk")).toUpperCase());
+        }
+        b.append(kcv);
+        return b.toString().getBytes(StandardCharsets.US_ASCII);
     }
 
     // =====================================================================

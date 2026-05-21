@@ -15,6 +15,7 @@ import {
 const nav = [
   { to: '/keys',         label: 'Locate',       code: null,    icon: KeyRound },
   { to: '/keys/new',     label: 'Generate RSA', code: 'EI/EJ', icon: PlusCircle },
+  { to: '/keys/new-sym', label: 'Generate Sym', code: 'A0/A1', icon: PlusCircle },
   { to: '/keys/import',  label: 'Import Key',   code: 'GI/GJ', icon: Download },
   { to: '/crypto',       label: 'Decrypt',      code: 'M2/M3', icon: Cpu },
   { to: '/pools',        label: 'Pools',        code: null,    icon: Server },

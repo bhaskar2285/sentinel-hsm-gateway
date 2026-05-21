@@ -86,6 +86,116 @@ public class KeyService {
             .build();
     }
 
+    public SymKeyGenResponse generateSymmetric(SymKeyGenRequest req, String userId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("mode",      req.getMode());
+        params.put("keyType",   req.getKeyType());
+        params.put("keyScheme", req.getKeyScheme());
+
+        if ("1".equals(req.getMode())) {
+            if (req.getZmkKeyId() == null) {
+                return SymKeyGenResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("zmkKeyId required when mode=1")
+                    .build();
+            }
+            HsmKey zmk = keyRepo.findByKeyUuid(UUID.fromString(req.getZmkKeyId()))
+                .orElseThrow(() -> new IllegalArgumentException("ZMK not found: " + req.getZmkKeyId()));
+            String blob = new String(zmk.getEncryptedBlob() == null ? new byte[0] : zmk.getEncryptedBlob(), StandardCharsets.US_ASCII);
+            if (blob.length() < 2) {
+                return SymKeyGenResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("ZMK has no LMK-encrypted material")
+                    .build();
+            }
+            params.put("zmkScheme",   blob.substring(0, 1));
+            params.put("zmkUnderLmk", blob.substring(1));
+            params.put("outScheme",   req.getOutScheme());
+        }
+
+        GatewayResponse resp = dispatcher.dispatch(GatewayCommand.builder()
+            .op(OpCode.KEY_GEN)
+            .vendorHint(HsmVendor.THALES)
+            .params(params)
+            .userId(userId)
+            .build());
+
+        String keyId = null;
+        String kcv = null;
+        String keyUnderZmk = null;
+        if ("OK".equals(resp.getStatus())) {
+            String scheme      = (String) resp.getResult().getOrDefault("scheme", req.getKeyScheme());
+            String keyUnderLmk = (String) resp.getResult().getOrDefault("keyUnderLmk", "");
+            kcv                = (String) resp.getResult().get("kcv");
+            keyUnderZmk        = (String) resp.getResult().get("keyUnderZmk");
+
+            String blob = scheme + keyUnderLmk;
+            String algo = algoForScheme(scheme);
+            int    bits = bitsForScheme(scheme);
+            String keyTypeName = keyTypeFamilyName(req.getKeyType());
+
+            HsmKey saved = keyRepo.save(HsmKey.builder()
+                .keyUuid(UUID.randomUUID())
+                .label(req.getLabel())
+                .keyType(keyTypeName)
+                .algo(algo)
+                .keyLengthBits(bits)
+                .usage(req.getUsage())
+                .ownerUserId(userId)
+                .ownerOrg(req.getOwnerOrg())
+                .kcv(kcv)
+                .vendorOrigin("thales")
+                .encryptedBlob(blob.getBytes(StandardCharsets.US_ASCII))
+                .status("ACTIVE")
+                .version(1)
+                .build());
+            keyId = saved.getKeyUuid().toString();
+        }
+
+        return SymKeyGenResponse.builder()
+            .keyId(keyId)
+            .kcv(kcv)
+            .keyUnderZmk(keyUnderZmk)
+            .status(resp.getStatus())
+            .errCode(resp.getErrCode())
+            .errText(resp.getErrText())
+            .latencyMs(resp.getLatencyMs())
+            .build();
+    }
+
+    private static String algoForScheme(String scheme) {
+        if (scheme == null || scheme.isEmpty()) return "3DES";
+        return switch (scheme.charAt(0)) {
+            case 'R', 'S', 'H' -> "AES";
+            default            -> "3DES";
+        };
+    }
+
+    private static int bitsForScheme(String scheme) {
+        if (scheme == null || scheme.isEmpty()) return 128;
+        return switch (scheme.charAt(0)) {
+            case 'Z'           -> 64;
+            case 'U', 'X', 'Y' -> 128;
+            case 'T'           -> 192;
+            case 'R'           -> 128;
+            case 'S'           -> 192;
+            case 'H'           -> 256;
+            default            -> 128;
+        };
+    }
+
+    private static String keyTypeFamilyName(String code) {
+        if (code == null) return "GENERIC";
+        return switch (code) {
+            case "000" -> "ZMK";
+            case "001" -> "ZPK";
+            case "002" -> "KBPK";
+            case "008" -> "TMK";
+            case "00A" -> "DATA";
+            default    -> "GENERIC";
+        };
+    }
+
     public KeyImportResponse importRsaWrapped(ImportRsaWrappedRequest req, String userId) {
         Map<String, Object> params = new HashMap<>();
         params.put("mode", req.getMode());

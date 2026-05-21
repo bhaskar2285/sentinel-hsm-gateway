@@ -22,6 +22,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
 
     private static final Set<OpCode> SUPPORTED = Set.of(
         OpCode.RSA_KEY_GEN,
+        OpCode.KEY_GEN,
         OpCode.KEY_IMPORT_RSA_WRAPPED,
         OpCode.KEY_EXPORT,
         OpCode.KEY_FORM_BLOCK,
@@ -85,6 +86,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
     private HsmWireMessage buildRequest(GatewayCommand cmd) {
         return switch (cmd.getOp()) {
             case RSA_KEY_GEN            -> Phase1Builder.buildEI(header, cmd.getParams());
+            case KEY_GEN                -> Phase1Builder.buildA0(header, cmd.getParams());
             case KEY_IMPORT_RSA_WRAPPED -> Phase1Builder.buildGI(header, cmd.getParams());
             case KEY_EXPORT             -> Phase1Builder.buildA8(header, cmd.getParams());
             case KEY_FORM_BLOCK         -> Phase1Builder.buildB4(header, cmd.getParams());
@@ -96,6 +98,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
     private String expectedResponse(OpCode op) {
         return switch (op) {
             case RSA_KEY_GEN            -> ThalesCommandCode.EI.response();
+            case KEY_GEN                -> ThalesCommandCode.A0.response();
             case KEY_IMPORT_RSA_WRAPPED -> ThalesCommandCode.GI.response();
             case KEY_EXPORT             -> ThalesCommandCode.A8.response();
             case KEY_FORM_BLOCK         -> ThalesCommandCode.B4.response();
