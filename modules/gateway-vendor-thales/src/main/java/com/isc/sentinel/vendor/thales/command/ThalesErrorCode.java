@@ -59,6 +59,13 @@ public final class ThalesErrorCode {
             case "90" -> "Data parity error in request from host";
             case "91" -> "LRC error in request from host";
             case "92" -> "Count value not between limits";
+            case "93" -> "Invalid characters in PIN block";
+            case "94" -> "Insufficient buffer space";
+            case "95" -> "Empty input field";
+            case "96" -> "Algorithm not licensed";
+            case "97" -> "Reserved for future use";
+            case "98" -> "Master key (LMK) parity error / HSM not in run state";
+            case "99" -> "Logical separator (LS) violation";
             default -> "Vendor error " + code;
         };
     }

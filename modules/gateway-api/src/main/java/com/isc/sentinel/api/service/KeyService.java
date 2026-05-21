@@ -47,6 +47,14 @@ public class KeyService {
             publicKey = (String) resp.getResult().get("publicKey");
             String privUnderLmk = (String) resp.getResult().get("privateKeyUnderLmk");
 
+            if (privUnderLmk == null || privUnderLmk.isEmpty()) {
+                return RsaKeyGenResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("EJ returned no privateKeyUnderLmk — HSM did not seal the private key. Not persisting.")
+                    .latencyMs(resp.getLatencyMs())
+                    .build();
+            }
+
             // KCV for RSA = first 6 hex of SHA-256(publicKeyDER) — fingerprint, public-safe.
             if (publicKey != null) {
                 try {
@@ -128,6 +136,14 @@ public class KeyService {
             String keyUnderLmk = (String) resp.getResult().getOrDefault("keyUnderLmk", "");
             kcv                = (String) resp.getResult().get("kcv");
             keyUnderZmk        = (String) resp.getResult().get("keyUnderZmk");
+
+            if (keyUnderLmk.isEmpty()) {
+                return SymKeyGenResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("A1 returned empty keyUnderLmk — HSM did not seal the key. Not persisting.")
+                    .latencyMs(resp.getLatencyMs())
+                    .build();
+            }
 
             String blob = scheme + keyUnderLmk;
             String algo = algoForScheme(scheme);
@@ -216,6 +232,14 @@ public class KeyService {
             String scheme       = (String) resp.getResult().getOrDefault("scheme", "U");
             String keyUnderLmk  = (String) resp.getResult().getOrDefault("keyUnderLmk", "");
             kcv                 = (String) resp.getResult().get("kcv");
+
+            if (keyUnderLmk.isEmpty()) {
+                return KeyImportResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("GJ returned empty keyUnderLmk — import did not seal the key. Not persisting.")
+                    .latencyMs(resp.getLatencyMs())
+                    .build();
+            }
             // Persist as scheme+hex (vendor wire format) for later A8 export.
             String blob = scheme + keyUnderLmk;
 
@@ -250,7 +274,22 @@ public class KeyService {
         HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(keyId))
             .orElseThrow(() -> new IllegalArgumentException("key not found: " + keyId));
 
+        if ("INVALID".equals(key.getStatus())) {
+            return ExportKeyResponse.builder()
+                .keyId(keyId).format(req.getFormat()).status("ERROR").errCode("VL")
+                .errText("Key " + keyId + " is INVALID (no LMK material — was created by a failed generation). Regenerate the key.")
+                .latencyMs(0).build();
+        }
+
         String keyBlob = new String(key.getEncryptedBlob() == null ? new byte[0] : key.getEncryptedBlob(), StandardCharsets.US_ASCII);
+
+        // Block RSA keys from A8/B4 — those are symmetric-only.
+        if ("RSA".equalsIgnoreCase(key.getAlgo()) && !"RAW".equalsIgnoreCase(req.getFormat())) {
+            return ExportKeyResponse.builder()
+                .keyId(keyId).format(req.getFormat()).status("ERROR").errCode("VL")
+                .errText("RSA keys cannot be exported via A8 / TR-31 (symmetric only). Use RAW for the LMK-encrypted DER, or GK (Phase 2) for RSA public-key wrap.")
+                .latencyMs(0).build();
+        }
 
         // RAW format: skip HSM, return LMK-encrypted blob directly (admin only)
         if ("RAW".equalsIgnoreCase(req.getFormat())) {
@@ -286,7 +325,7 @@ public class KeyService {
                 .format(req.getFormat())
                 .status("ERROR")
                 .errCode("VL")
-                .errText("Source key has no LMK-encrypted material (encrypted_blob empty)")
+                .errText("Key " + keyId + " has no LMK material. Regenerate via A0/EI — old row from a failed creation.")
                 .latencyMs(0)
                 .build();
         }
@@ -377,6 +416,7 @@ public class KeyService {
 
     public List<KeySummaryResponse> list(String labelFilter, String keyTypeFilter) {
         return keyRepo.findAll().stream()
+            .filter(k -> !"INVALID".equals(k.getStatus()))
             .filter(k -> labelFilter == null || k.getLabel().contains(labelFilter))
             .filter(k -> keyTypeFilter == null || k.getKeyType().equals(keyTypeFilter))
             .map(k -> KeySummaryResponse.builder()
