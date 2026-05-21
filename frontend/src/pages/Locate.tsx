@@ -65,6 +65,7 @@ export default function Locate() {
               <th className="text-left px-4 py-2.5">Algo</th>
               <th className="text-left px-4 py-2.5">Bits</th>
               <th className="text-left px-4 py-2.5">KCV</th>
+              <th className="text-left px-4 py-2.5">Bank</th>
               <th className="text-left px-4 py-2.5">Status</th>
               <th className="text-left px-4 py-2.5">Created</th>
             </tr>
@@ -82,6 +83,9 @@ export default function Locate() {
                 <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{k.keyLengthBits}</td>
                 <td className="px-4 py-2.5"><span className="chip-mono">{k.kcv ?? '—'}</span></td>
                 <td className="px-4 py-2.5">
+                  {k.bankRecId ? <span className="badge-info">#{k.bankRecId}</span> : <span className="text-slate-400 text-xs">—</span>}
+                </td>
+                <td className="px-4 py-2.5">
                   <span className={k.status === 'ACTIVE' ? 'badge-ok' : 'badge-mute'}>{k.status}</span>
                 </td>
                 <td className="px-4 py-2.5 text-slate-500 font-mono text-xs">
@@ -90,7 +94,7 @@ export default function Locate() {
               </tr>
             ))}
             {data?.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500 text-sm">
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500 text-sm">
                 No keys match. Try a different filter or generate one.
               </td></tr>
             )}

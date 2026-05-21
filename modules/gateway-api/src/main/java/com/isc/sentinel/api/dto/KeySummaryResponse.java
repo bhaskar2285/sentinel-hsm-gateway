@@ -15,5 +15,7 @@ public class KeySummaryResponse {
     private Integer keyLengthBits;
     private String status;
     private String kcv;
+    private Long   bankRecId;
+    private Long   branchRecId;
     private OffsetDateTime createdAt;
 }

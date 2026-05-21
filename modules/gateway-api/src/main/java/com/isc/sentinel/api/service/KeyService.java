@@ -1,5 +1,6 @@
 package com.isc.sentinel.api.service;
 
+import com.isc.sentinel.api.controller.KeyController.TenantCtx;
 import com.isc.sentinel.api.dto.*;
 import com.isc.sentinel.core.dispatch.CommandDispatcher;
 import com.isc.sentinel.persistence.entity.HsmKey;
@@ -24,7 +25,7 @@ public class KeyService {
     private final CommandDispatcher dispatcher;
     private final HsmKeyRepository keyRepo;
 
-    public RsaKeyGenResponse generateRsa(RsaKeyGenRequest req, String userId) {
+    public RsaKeyGenResponse generateRsa(RsaKeyGenRequest req, String userId, TenantCtx tenant) {
         Map<String, Object> params = new HashMap<>();
         params.put("keyType", req.getKeyType());
         params.put("modulusBits", req.getModulusBits());
@@ -74,6 +75,8 @@ public class KeyService {
                 .usage(req.getUsage())
                 .ownerUserId(userId)
                 .ownerOrg(req.getOwnerOrg())
+                .bankRecId(tenant == null ? null : tenant.bankRecId())
+                .branchRecId(tenant == null ? null : tenant.branchRecId())
                 .kcv(kcv)
                 .vendorOrigin("thales")
                 .encryptedBlob(privUnderLmk == null ? null : privUnderLmk.getBytes(StandardCharsets.US_ASCII))
@@ -94,7 +97,7 @@ public class KeyService {
             .build();
     }
 
-    public SymKeyGenResponse generateSymmetric(SymKeyGenRequest req, String userId) {
+    public SymKeyGenResponse generateSymmetric(SymKeyGenRequest req, String userId, TenantCtx tenant) {
         Map<String, Object> params = new HashMap<>();
         params.put("mode",      req.getMode());
         params.put("keyType",   req.getKeyType());
@@ -159,6 +162,8 @@ public class KeyService {
                 .usage(req.getUsage())
                 .ownerUserId(userId)
                 .ownerOrg(req.getOwnerOrg())
+                .bankRecId(tenant == null ? null : tenant.bankRecId())
+                .branchRecId(tenant == null ? null : tenant.branchRecId())
                 .kcv(kcv)
                 .vendorOrigin("thales")
                 .encryptedBlob(blob.getBytes(StandardCharsets.US_ASCII))
@@ -239,7 +244,7 @@ public class KeyService {
         };
     }
 
-    public KeyImportResponse importRsaWrapped(ImportRsaWrappedRequest req, String userId) {
+    public KeyImportResponse importRsaWrapped(ImportRsaWrappedRequest req, String userId, TenantCtx tenant) {
         Map<String, Object> params = new HashMap<>();
         params.put("mode", req.getMode());
         params.put("hashId", req.getHashId());
@@ -278,6 +283,8 @@ public class KeyService {
                 .keyLengthBits(128)
                 .usage(req.getUsage())
                 .ownerUserId(userId)
+                .bankRecId(tenant == null ? null : tenant.bankRecId())
+                .branchRecId(tenant == null ? null : tenant.branchRecId())
                 .kcv(kcv)
                 .vendorOrigin("thales")
                 .encryptedBlob(blob.getBytes(StandardCharsets.US_ASCII))
@@ -297,7 +304,7 @@ public class KeyService {
             .build();
     }
 
-    public KeyImportResponse importZmkWrapped(ImportZmkWrappedRequest req, String userId) {
+    public KeyImportResponse importZmkWrapped(ImportZmkWrappedRequest req, String userId, TenantCtx tenant) {
         HsmKey zmk = keyRepo.findByKeyUuid(UUID.fromString(req.getZmkKeyId()))
             .orElseThrow(() -> new IllegalArgumentException("ZMK not found: " + req.getZmkKeyId()));
         String zmkBlob = new String(zmk.getEncryptedBlob() == null ? new byte[0] : zmk.getEncryptedBlob(), StandardCharsets.US_ASCII);
@@ -348,6 +355,8 @@ public class KeyService {
                 .usage(req.getUsage())
                 .ownerUserId(userId)
                 .ownerOrg(req.getOwnerOrg())
+                .bankRecId(tenant == null ? null : tenant.bankRecId())
+                .branchRecId(tenant == null ? null : tenant.branchRecId())
                 .kcv(kcv)
                 .vendorOrigin("thales")
                 .encryptedBlob(blob.getBytes(StandardCharsets.US_ASCII))
@@ -551,9 +560,10 @@ public class KeyService {
             .build();
     }
 
-    public List<KeySummaryResponse> list(String labelFilter, String keyTypeFilter) {
+    public List<KeySummaryResponse> list(String labelFilter, String keyTypeFilter, Long bankFilter) {
         return keyRepo.findAll().stream()
             .filter(k -> !"INVALID".equals(k.getStatus()))
+            .filter(k -> bankFilter == null || (k.getBankRecId() != null && k.getBankRecId().equals(bankFilter)))
             .filter(k -> labelFilter == null || k.getLabel().contains(labelFilter))
             .filter(k -> keyTypeFilter == null || k.getKeyType().equals(keyTypeFilter))
             .map(k -> KeySummaryResponse.builder()
@@ -564,6 +574,8 @@ public class KeyService {
                 .keyLengthBits(k.getKeyLengthBits())
                 .status(k.getStatus())
                 .kcv(k.getKcv())
+                .bankRecId(k.getBankRecId())
+                .branchRecId(k.getBranchRecId())
                 .createdAt(k.getCreatedAt())
                 .build())
             .toList();

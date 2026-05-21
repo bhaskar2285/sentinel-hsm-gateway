@@ -39,6 +39,14 @@ public class HsmKey {
     @Column(name = "owner_org", length = 128)
     private String ownerOrg;
 
+    /** Tenant ownership — FK to isc_ms_bank.rec_id. */
+    @Column(name = "bank_rec_id")
+    private Long bankRecId;
+
+    /** Branch ownership — FK to isc_ms_branch.rec_id (nullable). */
+    @Column(name = "branch_rec_id")
+    private Long branchRecId;
+
     @Column(length = 16)
     private String kcv;
 

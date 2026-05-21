@@ -8,6 +8,11 @@ export const api = axios.create({
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('sentinel.jwt');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  try {
+    const u = JSON.parse(localStorage.getItem('sentinel.user') ?? 'null');
+    if (u?.bankId)   cfg.headers['X-Bank-Id']   = String(u.bankId);
+    if (u?.branchId) cfg.headers['X-Branch-Id'] = String(u.branchId);
+  } catch { /* ignore */ }
   return cfg;
 });
 

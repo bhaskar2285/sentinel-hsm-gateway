@@ -8,6 +8,8 @@ export interface KeySummary {
   keyLengthBits: number;
   status: string;
   kcv?: string;
+  bankRecId?: number;
+  branchRecId?: number;
   createdAt: string;
 }
 
