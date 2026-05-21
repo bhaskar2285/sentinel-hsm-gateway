@@ -39,6 +39,12 @@ public class KeyController {
         return keyService.importRsaWrapped(req, userOf(auth));
     }
 
+    @PostMapping("/import-zmk-wrapped")
+    @PreAuthorize("hasAuthority('OP_KEY_IMPORT_ZMK')")
+    public KeyImportResponse importZmkWrapped(@Valid @RequestBody ImportZmkWrappedRequest req, Authentication auth) {
+        return keyService.importZmkWrapped(req, userOf(auth));
+    }
+
     @PostMapping("/{keyId}/export")
     @PreAuthorize("hasAuthority('OP_KEY_EXPORT')")
     public ExportKeyResponse exportKey(@PathVariable String keyId,

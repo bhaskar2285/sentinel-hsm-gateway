@@ -93,6 +93,113 @@ public final class Phase1Builder {
     }
 
     // =====================================================================
+    // A6 — Import Key (under ZMK) — symmetric-key import counterpart to GI
+    // Body: KeyType(3N) + ZmkScheme(1A) + ZmkUnderLmk(hex)
+    //     + KeyScheme(1A) + KeyUnderZmk(hex) + LmkScheme(1A)
+    // =====================================================================
+
+    public static HsmWireMessage buildA6(HsmHeader header, Map<String, Object> params) {
+        String keyType    = (String) params.getOrDefault("keyType", "001");
+        String zmkScheme  = (String) params.getOrDefault("zmkScheme", "U");
+        String zmkUnder   = ((String) params.get("zmkUnderLmk")).toUpperCase();
+        String keyScheme  = (String) params.getOrDefault("keyScheme", "U");
+        String keyUnderZ  = ((String) params.get("keyUnderZmk")).toUpperCase();
+        String lmkScheme  = (String) params.getOrDefault("lmkScheme", "U");
+
+        String body = keyType
+                    + zmkScheme + zmkUnder
+                    + keyScheme + keyUnderZ
+                    + lmkScheme;
+        return new HsmWireMessage(header, "A6", body.getBytes(StandardCharsets.US_ASCII), null);
+    }
+
+    public static Map<String, Object> parseA6(byte[] body) {
+        String s = new String(body, StandardCharsets.US_ASCII);
+        if (!s.startsWith("A6") || s.length() < 8) {
+            throw new IllegalArgumentException("A6 body malformed");
+        }
+        int pos = 2;
+        Map<String, Object> p = new HashMap<>();
+        p.put("keyType", s.substring(pos, pos + 3)); pos += 3;
+
+        String zmkScheme = s.substring(pos, pos + 1); pos += 1;
+        int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+        p.put("zmkScheme",   zmkScheme);
+        p.put("zmkUnderLmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
+
+        String keyScheme = s.substring(pos, pos + 1); pos += 1;
+        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        p.put("keyScheme",   keyScheme);
+        p.put("keyUnderZmk", s.substring(pos, pos + keyHex)); pos += keyHex;
+
+        p.put("lmkScheme",   s.substring(pos, pos + 1));
+        return p;
+    }
+
+    // =====================================================================
+    // M0 — Encrypt Data Block (mirror of M2)
+    // Body: Mode(2A) + InFmt(1A) + OutFmt(1A) + KeyType(3A) + KeyScheme(1A)
+    //     + KeyUnderLmk(hex per scheme) + MsgLen(4N) + [IV(32H) if CBC] + Plain(hex)
+    // =====================================================================
+
+    public static HsmWireMessage buildM0(HsmHeader header, Map<String, Object> params) {
+        String mode    = (String) params.getOrDefault("mode", "01");
+        String inFmt   = (String) params.getOrDefault("inputFormat",  "0");
+        String outFmt  = (String) params.getOrDefault("outputFormat", "0");
+        String keyType = (String) params.getOrDefault("keyType", "00A");
+
+        String keyScheme;
+        String keyUnder;
+        if (params.containsKey("keyScheme") && params.containsKey("keyUnderLmk")) {
+            keyScheme = ((String) params.get("keyScheme")).toUpperCase();
+            keyUnder  = ((String) params.get("keyUnderLmk")).toUpperCase();
+        } else {
+            String legacy = ((String) params.get("keyHex")).toUpperCase();
+            keyScheme = legacy.substring(0, 1);
+            keyUnder  = legacy.substring(1);
+        }
+
+        String iv    = ((String) params.getOrDefault("iv", "")).toUpperCase();
+        String plain = ((String) params.get("plaintextHex")).toUpperCase();
+        int plainBytes = plain.length() / 2;
+
+        StringBuilder b = new StringBuilder();
+        b.append(mode).append(inFmt).append(outFmt).append(keyType)
+         .append(keyScheme).append(keyUnder)
+         .append(String.format("%04d", plainBytes));
+        if ("01".equals(mode) && !iv.isEmpty()) b.append(iv);
+        b.append(plain);
+
+        return new HsmWireMessage(header, "M0", b.toString().getBytes(StandardCharsets.US_ASCII), null);
+    }
+
+    public static Map<String, Object> parseM0(byte[] body) {
+        String s = new String(body, StandardCharsets.US_ASCII);
+        if (!s.startsWith("M0") || s.length() < 12) {
+            throw new IllegalArgumentException("M0 body malformed");
+        }
+        int pos = 2;
+        Map<String, Object> p = new HashMap<>();
+        String mode  = s.substring(pos, pos + 2); pos += 2;
+        p.put("mode", mode);
+        p.put("inputFormat",  s.substring(pos, pos + 1)); pos += 1;
+        p.put("outputFormat", s.substring(pos, pos + 1)); pos += 1;
+        p.put("keyType",      s.substring(pos, pos + 3)); pos += 3;
+
+        String keyScheme = s.substring(pos, pos + 1); pos += 1;
+        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        p.put("keyScheme",   keyScheme);
+        p.put("keyUnderLmk", s.substring(pos, pos + keyHex)); pos += keyHex;
+
+        int msgLen = Integer.parseInt(s.substring(pos, pos + 4)); pos += 4;
+        if ("01".equals(mode)) {
+            p.put("iv", s.substring(pos, pos + 32)); pos += 32;
+        }
+        p.put("plaintextHex", s.substring(pos, pos + msgLen * 2));
+        return p;
+    }
+
+    // =====================================================================
     // A8 — Export Key (wrap under ZMK/KBPK)
     // Body: ZmkType(3H) + KeyType(3H) + ZmkScheme(1A) + ZmkUnderLmk(hex)
     //     + KeyScheme(1A) + KeyUnderLmk(hex) + OutScheme(1A)

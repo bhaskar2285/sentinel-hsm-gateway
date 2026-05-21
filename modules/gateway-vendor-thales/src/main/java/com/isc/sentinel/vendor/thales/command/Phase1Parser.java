@@ -53,8 +53,10 @@ public final class Phase1Parser {
             case "EJ" -> parseEJBody(s, pos, fields);
             case "GJ" -> parseGJBody(s, pos, fields);
             case "A1" -> parseA1Body(s, pos, fields);
+            case "A7" -> parseA7Body(s, pos, fields);
             case "A9" -> parseA9Body(s, pos, fields);
             case "B5" -> parseB5Body(s, pos, fields);
+            case "M1" -> parseM1Body(s, pos, fields);
             case "M3" -> parseM3Body(s, pos, fields);
             default   -> fields.put("raw", s.substring(pos));
         }
@@ -160,6 +162,29 @@ public final class Phase1Parser {
     }
 
     // =====================================================================
+    // A7 — Import Key (under ZMK) response
+    // Body: LmkScheme(1A) + KeyUnderLmk(hex per scheme) + KCV(6H)
+    // =====================================================================
+
+    private static void parseA7Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
+        String scheme = s.substring(pos, pos + 1); pos += 1;
+        f.put("scheme", scheme);
+        int hex = KeyScheme.hexLenForScheme(scheme.charAt(0));
+        f.put("keyUnderLmk", s.substring(pos, pos + hex)); pos += hex;
+        f.put("kcv", s.substring(pos, pos + 6));
+    }
+
+    public static byte[] buildA7(String errCode, Map<String, Object> fields) {
+        if (!"00".equals(errCode)) return ("A7" + errCode).getBytes(StandardCharsets.US_ASCII);
+        String scheme = (String) fields.getOrDefault("scheme", "U");
+        String key    = ((String) fields.get("keyUnderLmk")).toUpperCase();
+        String kcv    = ((String) fields.get("kcv")).toUpperCase();
+        String body = "A7" + errCode + scheme + key + kcv;
+        return body.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    // =====================================================================
     // A9 — Export Key response
     // Body: Scheme(1A) + KeyUnderZmk(hex per scheme) + KCV(6H)
     // =====================================================================
@@ -205,6 +230,25 @@ public final class Phase1Parser {
         if (!"00".equals(errCode)) return ("B5" + errCode).getBytes(StandardCharsets.US_ASCII);
         String block = (String) fields.get("keyBlock");
         String body = "B5" + errCode + String.format("%04d", block.length()) + block;
+        return body.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    // =====================================================================
+    // M1 — Encrypt Data Block response
+    // Body: MsgLen(4N) + Ciphertext(hex)
+    // =====================================================================
+
+    private static void parseM1Body(String s, int pos, Map<String, Object> f) {
+        int len = Integer.parseInt(s.substring(pos, pos + 4)); pos += 4;
+        f.put("ciphertext", s.substring(pos, Math.min(pos + len * 2, s.length())));
+        f.put("messageLength", len);
+    }
+
+    public static byte[] buildM1(String errCode, Map<String, Object> fields) {
+        if (!"00".equals(errCode)) return ("M1" + errCode).getBytes(StandardCharsets.US_ASCII);
+        String c = ((String) fields.get("ciphertext")).toUpperCase();
+        int bytes = c.length() / 2;
+        String body = "M1" + errCode + String.format("%04d", bytes) + c;
         return body.getBytes(StandardCharsets.US_ASCII);
     }
 

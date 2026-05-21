@@ -31,9 +31,13 @@ public class CryptoService {
         params.put("mode", req.getMode());
         params.put("inputFormat", req.getInputFormat());
         params.put("outputFormat", req.getOutputFormat());
-        params.put("keyType", "00A"); // TODO map from k.getKeyType()
-        params.put("keyHex", k.getEncryptedBlob() == null ? "" : new String(k.getEncryptedBlob()));
-        if (req.getIv() != null) params.put("iv", req.getIv());
+        params.put("keyType", familyCodeForKeyType(k.getKeyType()));
+        String blob = k.getEncryptedBlob() == null ? "" : new String(k.getEncryptedBlob());
+        params.put("keyHex", blob);
+        if (req.getIv() != null && !req.getIv().isEmpty()) {
+            String sch = blob.isEmpty() ? "U" : blob.substring(0, 1);
+            params.put("iv", sizeIv(req.getIv(), sch));
+        }
         params.put("messageHex", req.getCiphertextHex());
 
         GatewayResponse resp = dispatcher.dispatch(GatewayCommand.builder()
@@ -51,5 +55,25 @@ public class CryptoService {
             .errText(resp.getErrText())
             .latencyMs(resp.getLatencyMs())
             .build();
+    }
+
+    private static String sizeIv(String iv, String scheme) {
+        int t = (scheme != null && !scheme.isEmpty()
+              && (scheme.charAt(0)=='R' || scheme.charAt(0)=='S' || scheme.charAt(0)=='H')) ? 32 : 16;
+        if (iv.length() == t) return iv;
+        if (iv.length() > t)  return iv.substring(0, t);
+        return iv + "0".repeat(t - iv.length());
+    }
+
+    private static String familyCodeForKeyType(String name) {
+        if (name == null) return "00A";
+        return switch (name) {
+            case "ZMK"  -> "000";
+            case "ZPK"  -> "001";
+            case "KBPK" -> "002";
+            case "TMK"  -> "008";
+            case "DATA" -> "00A";
+            default     -> "00A";
+        };
     }
 }

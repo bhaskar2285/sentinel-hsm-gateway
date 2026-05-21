@@ -24,8 +24,10 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
         OpCode.RSA_KEY_GEN,
         OpCode.KEY_GEN,
         OpCode.KEY_IMPORT_RSA_WRAPPED,
+        OpCode.KEY_IMPORT_ZMK,
         OpCode.KEY_EXPORT,
         OpCode.KEY_FORM_BLOCK,
+        OpCode.DATA_ENCRYPT,
         OpCode.DATA_DECRYPT
     );
 
@@ -88,8 +90,10 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case RSA_KEY_GEN            -> Phase1Builder.buildEI(header, cmd.getParams());
             case KEY_GEN                -> Phase1Builder.buildA0(header, cmd.getParams());
             case KEY_IMPORT_RSA_WRAPPED -> Phase1Builder.buildGI(header, cmd.getParams());
+            case KEY_IMPORT_ZMK         -> Phase1Builder.buildA6(header, cmd.getParams());
             case KEY_EXPORT             -> Phase1Builder.buildA8(header, cmd.getParams());
             case KEY_FORM_BLOCK         -> Phase1Builder.buildB4(header, cmd.getParams());
+            case DATA_ENCRYPT           -> Phase1Builder.buildM0(header, cmd.getParams());
             case DATA_DECRYPT           -> Phase1Builder.buildM2(header, cmd.getParams());
             default -> throw new UnsupportedOperationException("Thales op not supported: " + cmd.getOp());
         };
@@ -100,8 +104,10 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case RSA_KEY_GEN            -> ThalesCommandCode.EI.response();
             case KEY_GEN                -> ThalesCommandCode.A0.response();
             case KEY_IMPORT_RSA_WRAPPED -> ThalesCommandCode.GI.response();
+            case KEY_IMPORT_ZMK         -> ThalesCommandCode.A6.response();
             case KEY_EXPORT             -> ThalesCommandCode.A8.response();
             case KEY_FORM_BLOCK         -> ThalesCommandCode.B4.response();
+            case DATA_ENCRYPT           -> ThalesCommandCode.M0.response();
             case DATA_DECRYPT           -> ThalesCommandCode.M2.response();
             default -> throw new UnsupportedOperationException("no Thales mapping: " + op);
         };

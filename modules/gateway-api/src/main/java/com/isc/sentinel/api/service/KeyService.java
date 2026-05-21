@@ -200,6 +200,33 @@ public class KeyService {
         };
     }
 
+    /** Reverse of keyTypeFamilyName: takes a stored key_type name (ZMK/ZPK/...) and
+     *  returns the Thales 3-digit family code. Falls back to the request hint then "00A". */
+    /** Pad/truncate caller IV to the cipher block size for the given scheme.
+     *  3DES → 16 hex (8 bytes), AES → 32 hex (16 bytes). */
+    private static String sizeIvForScheme(String iv, String scheme) {
+        int target = (scheme != null && !scheme.isEmpty()
+                  && (scheme.charAt(0) == 'R' || scheme.charAt(0) == 'S' || scheme.charAt(0) == 'H'))
+                ? 32 : 16;
+        if (iv.length() == target) return iv;
+        if (iv.length() > target)  return iv.substring(0, target);
+        return iv + "0".repeat(target - iv.length());
+    }
+
+    private static String familyCodeForKeyType(String storedName, String requestHint) {
+        if (storedName != null) {
+            switch (storedName) {
+                case "ZMK":  return "000";
+                case "ZPK":  return "001";
+                case "KBPK": return "002";
+                case "TMK":  return "008";
+                case "DATA": return "00A";
+                default:     break;
+            }
+        }
+        return requestHint != null ? requestHint : "00A";
+    }
+
     private static String keyTypeFamilyName(String code) {
         if (code == null) return "GENERIC";
         return switch (code) {
@@ -263,6 +290,116 @@ public class KeyService {
         return KeyImportResponse.builder()
             .keyId(keyId)
             .kcv(kcv)
+            .status(resp.getStatus())
+            .errCode(resp.getErrCode())
+            .errText(resp.getErrText())
+            .latencyMs(resp.getLatencyMs())
+            .build();
+    }
+
+    public KeyImportResponse importZmkWrapped(ImportZmkWrappedRequest req, String userId) {
+        HsmKey zmk = keyRepo.findByKeyUuid(UUID.fromString(req.getZmkKeyId()))
+            .orElseThrow(() -> new IllegalArgumentException("ZMK not found: " + req.getZmkKeyId()));
+        String zmkBlob = new String(zmk.getEncryptedBlob() == null ? new byte[0] : zmk.getEncryptedBlob(), StandardCharsets.US_ASCII);
+        if (zmkBlob.length() < 2) {
+            return KeyImportResponse.builder()
+                .status("ERROR").errCode("VL")
+                .errText("ZMK has no LMK material — pick a valid ZMK")
+                .build();
+        }
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("keyType",     req.getKeyType());
+        params.put("zmkScheme",   zmkBlob.substring(0, 1));
+        params.put("zmkUnderLmk", zmkBlob.substring(1));
+        params.put("keyScheme",   req.getKeyScheme());
+        params.put("keyUnderZmk", req.getKeyUnderZmkHex());
+        params.put("lmkScheme",   req.getLmkScheme());
+
+        GatewayResponse resp = dispatcher.dispatch(GatewayCommand.builder()
+            .op(OpCode.KEY_IMPORT_ZMK)
+            .vendorHint(HsmVendor.THALES)
+            .params(params)
+            .userId(userId)
+            .build());
+
+        String keyId = null;
+        String kcv = null;
+        if ("OK".equals(resp.getStatus())) {
+            String scheme       = (String) resp.getResult().getOrDefault("scheme", req.getLmkScheme());
+            String keyUnderLmk  = (String) resp.getResult().getOrDefault("keyUnderLmk", "");
+            kcv                 = (String) resp.getResult().get("kcv");
+
+            if (keyUnderLmk.isEmpty()) {
+                return KeyImportResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("A7 returned empty keyUnderLmk — not persisting.")
+                    .latencyMs(resp.getLatencyMs())
+                    .build();
+            }
+
+            String blob = scheme + keyUnderLmk;
+            HsmKey saved = keyRepo.save(HsmKey.builder()
+                .keyUuid(UUID.randomUUID())
+                .label(req.getLabel())
+                .keyType(keyTypeFamilyName(req.getKeyType()))
+                .algo(algoForScheme(scheme))
+                .keyLengthBits(bitsForScheme(scheme))
+                .usage(req.getUsage())
+                .ownerUserId(userId)
+                .ownerOrg(req.getOwnerOrg())
+                .kcv(kcv)
+                .vendorOrigin("thales")
+                .encryptedBlob(blob.getBytes(StandardCharsets.US_ASCII))
+                .status("ACTIVE")
+                .version(1)
+                .build());
+            keyId = saved.getKeyUuid().toString();
+        }
+
+        return KeyImportResponse.builder()
+            .keyId(keyId)
+            .kcv(kcv)
+            .status(resp.getStatus())
+            .errCode(resp.getErrCode())
+            .errText(resp.getErrText())
+            .latencyMs(resp.getLatencyMs())
+            .build();
+    }
+
+    public EncryptResponse encrypt(EncryptRequest req, String userId) {
+        HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
+            .orElseThrow(() -> new IllegalArgumentException("key not found: " + req.getKeyId()));
+        if ("INVALID".equals(key.getStatus())) {
+            return EncryptResponse.builder().status("ERROR").errCode("VL")
+                .errText("Key is INVALID — regenerate.").build();
+        }
+        String blob = new String(key.getEncryptedBlob() == null ? new byte[0] : key.getEncryptedBlob(), StandardCharsets.US_ASCII);
+        if (blob.length() < 2) {
+            return EncryptResponse.builder().status("ERROR").errCode("VL")
+                .errText("Key has no LMK material.").build();
+        }
+        String scheme = blob.substring(0, 1);
+        Map<String, Object> params = new HashMap<>();
+        params.put("mode",         req.getMode());
+        params.put("keyType",      familyCodeForKeyType(key.getKeyType(), req.getKeyType()));
+        params.put("keyScheme",    scheme);
+        params.put("keyUnderLmk",  blob.substring(1));
+        if (req.getIv() != null && !req.getIv().isEmpty()) {
+            params.put("iv", sizeIvForScheme(req.getIv(), scheme));
+        }
+        params.put("plaintextHex", req.getPlaintextHex());
+
+        GatewayResponse resp = dispatcher.dispatch(GatewayCommand.builder()
+            .op(OpCode.DATA_ENCRYPT)
+            .vendorHint(HsmVendor.THALES)
+            .params(params)
+            .keyId(req.getKeyId())
+            .userId(userId)
+            .build());
+
+        return EncryptResponse.builder()
+            .ciphertextHex((String) resp.getResult().get("ciphertext"))
             .status(resp.getStatus())
             .errCode(resp.getErrCode())
             .errText(resp.getErrText())
