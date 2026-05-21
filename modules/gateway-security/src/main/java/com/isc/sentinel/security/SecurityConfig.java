@@ -19,9 +19,10 @@ import java.util.stream.Stream;
 public class SecurityConfig {
 
     private static final List<String> ALL_OPS = List.of(
-        "KEY_CREATE_RSA","KEY_IMPORT","KEY_EXPORT","KEY_READ",
+        "KEY_CREATE_RSA","KEY_CREATE_SYM","KEY_IMPORT","KEY_EXPORT","KEY_READ","KEY_DELETE",
+        "KEY_FORM_BLOCK",
         "CRYPTO_DECRYPT","CRYPTO_ENCRYPT","MAC_GEN","MAC_VRFY",
-        "PIN_VRFY","PIN_XLATE","ADMIN_POOL","ADMIN_AUDIT","RAW_CMD"
+        "PIN_VRFY","PIN_XLATE","ADMIN_POOL","ADMIN_AUDIT","ADMIN_RBAC","RAW_CMD"
     );
 
     @Bean
