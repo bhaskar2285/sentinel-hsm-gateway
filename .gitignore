@@ -8,3 +8,7 @@ target/
 logs/
 *.log
 .mvn/wrapper/maven-wrapper.jar
+
+frontend/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
