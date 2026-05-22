@@ -17,6 +17,8 @@ public class KeyDetailResponse {
     private String ownerUserId;
     private String ownerOrg;
     private String kcv;
+    private Long   bankRecId;
+    private Long   branchRecId;
     private String vendorOrigin;
     private Short lmkIdx;
     private String status;

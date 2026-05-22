@@ -151,7 +151,8 @@ public class KeyService {
             String blob = scheme + keyUnderLmk;
             String algo = algoForScheme(scheme);
             int    bits = bitsForScheme(scheme);
-            String keyTypeName = keyTypeFamilyName(req.getKeyType());
+            // req.getKeyType() is already a name ("ZMK", "ZPK", ...); keep it as-is.
+            String keyTypeName = req.getKeyType() == null ? "GENERIC" : req.getKeyType();
 
             HsmKey saved = keyRepo.save(HsmKey.builder()
                 .keyUuid(UUID.randomUUID())
@@ -349,7 +350,7 @@ public class KeyService {
             HsmKey saved = keyRepo.save(HsmKey.builder()
                 .keyUuid(UUID.randomUUID())
                 .label(req.getLabel())
-                .keyType(keyTypeFamilyName(req.getKeyType()))
+                .keyType(req.getKeyType() == null ? "GENERIC" : req.getKeyType())
                 .algo(algoForScheme(scheme))
                 .keyLengthBits(bitsForScheme(scheme))
                 .usage(req.getUsage())
@@ -594,6 +595,8 @@ public class KeyService {
             .ownerUserId(k.getOwnerUserId())
             .ownerOrg(k.getOwnerOrg())
             .kcv(k.getKcv())
+            .bankRecId(k.getBankRecId())
+            .branchRecId(k.getBranchRecId())
             .vendorOrigin(k.getVendorOrigin())
             .lmkIdx(k.getLmkIdx())
             .status(k.getStatus())
