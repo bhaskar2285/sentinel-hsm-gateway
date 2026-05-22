@@ -49,6 +49,22 @@ blue "TOKEN=${TOKEN:0:24}…"
 H_AUTH="Authorization: Bearer $TOKEN"
 
 # --------------------------------------------------------------------
+step "1b. Ensure a branch exists under bank=$BANK (FK target for hsm_key)"
+BRANCHES_RES=$(curl -s "$GW/api/v1/admin/banks/$BANK/branches" -H "$H_AUTH")
+FIRST_BRANCH=$(echo "$BRANCHES_RES" | jq -r 'if (type == "array" and length > 0) then .[0].recId else empty end')
+
+if [[ -z "$FIRST_BRANCH" ]]; then
+  blue "no branches; creating one"
+  CREATE_RES=$(curl -sX POST "$GW/api/v1/admin/banks/$BANK/branches" \
+    -H "$H_AUTH" -H 'Content-Type: application/json' \
+    -d '{"code":"HQ","name":"Smoke Test Branch","city":"Bangalore","countryIso2":"IN"}')
+  FIRST_BRANCH=$(echo "$CREATE_RES" | jq -r '.recId // empty')
+  [[ -n "$FIRST_BRANCH" ]] || { red "branch create failed:"; echo "$CREATE_RES" | jq .; exit 1; }
+fi
+BRANCH="$FIRST_BRANCH"
+blue "BRANCH=$BRANCH"
+
+# --------------------------------------------------------------------
 step "2. Generate ZMK (Zone Master Key, mode 0 — fresh under LMK)"
 ZMK_RES=$(curl -sX POST "$GW/api/v1/keys/symmetric" \
   -H "$H_AUTH" -H 'Content-Type: application/json' \
@@ -75,7 +91,7 @@ blue "ZPK_ID=$ZPK_ID"
 # --------------------------------------------------------------------
 step "4. Encrypt plaintext under ZPK"
 ENC_BODY=$(jq -nc --arg k "$ZPK_ID" --arg pt "$PLAINTEXT_HEX" --arg iv "$IV_3DES_HEX" \
-  '{keyId:$k,plaintextHex:$pt,ivHex:$iv}')
+  '{keyId:$k,plaintextHex:$pt,iv:$iv}')
 ENC_RES=$(curl -sX POST "$GW/api/v1/crypto/encrypt" \
   -H "$H_AUTH" -H 'Content-Type: application/json' \
   -d "$ENC_BODY")
@@ -88,7 +104,7 @@ blue "ciphertext = $CT"
 # --------------------------------------------------------------------
 step "5. Decrypt ciphertext back under ZPK"
 DEC_BODY=$(jq -nc --arg k "$ZPK_ID" --arg ct "$CT" --arg iv "$IV_3DES_HEX" \
-  '{keyId:$k,ciphertextHex:$ct,ivHex:$iv}')
+  '{keyId:$k,ciphertextHex:$ct,iv:$iv}')
 DEC_RES=$(curl -sX POST "$GW/api/v1/crypto/decrypt" \
   -H "$H_AUTH" -H 'Content-Type: application/json' \
   -d "$DEC_BODY")

@@ -100,7 +100,7 @@ public class KeyService {
     public SymKeyGenResponse generateSymmetric(SymKeyGenRequest req, String userId, TenantCtx tenant) {
         Map<String, Object> params = new HashMap<>();
         params.put("mode",      req.getMode());
-        params.put("keyType",   req.getKeyType());
+        params.put("keyType",   familyCodeForKeyType(req.getKeyType(), req.getKeyType()));
         params.put("keyScheme", req.getKeyScheme());
 
         if ("1".equals(req.getMode())) {
@@ -316,7 +316,7 @@ public class KeyService {
         }
 
         Map<String, Object> params = new HashMap<>();
-        params.put("keyType",     req.getKeyType());
+        params.put("keyType",     familyCodeForKeyType(req.getKeyType(), req.getKeyType()));
         params.put("zmkScheme",   zmkBlob.substring(0, 1));
         params.put("zmkUnderLmk", zmkBlob.substring(1));
         params.put("keyScheme",   req.getKeyScheme());
