@@ -3,6 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search } from 'lucide-react';
 import { keysApi, KeySummary } from '../api/keys';
+import { api } from '../api/client';
+
+interface BankStub { recId: number; code: string; name: string }
 
 export default function Locate() {
   const [label, setLabel] = useState('');
@@ -12,6 +15,16 @@ export default function Locate() {
     queryKey: ['keys', label, keyType],
     queryFn: () => keysApi.list({ label: label || undefined, keyType: keyType || undefined }),
   });
+
+  const { data: banks = [] } = useQuery<BankStub[]>({
+    queryKey: ['admin', 'banks'],
+    queryFn: async () => (await api.get('/admin/banks', { baseURL: '/api/v1' })).data,
+  });
+  const bankLabel = (id?: number) => {
+    if (!id) return null;
+    const b = banks.find(x => x.recId === id);
+    return b ? `${b.code}` : `#${id}`;
+  };
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -83,7 +96,9 @@ export default function Locate() {
                 <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{k.keyLengthBits}</td>
                 <td className="px-4 py-2.5"><span className="chip-mono">{k.kcv ?? '—'}</span></td>
                 <td className="px-4 py-2.5">
-                  {k.bankRecId ? <span className="badge-info">#{k.bankRecId}</span> : <span className="text-slate-400 text-xs">—</span>}
+                  {k.bankRecId
+                    ? <span className="badge-info">{bankLabel(k.bankRecId)}</span>
+                    : <span className="text-slate-400 text-xs">—</span>}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={k.status === 'ACTIVE' ? 'badge-ok' : 'badge-mute'}>{k.status}</span>

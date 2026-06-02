@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface IscSamTeamRoleRepository extends JpaRepository<IscSamTeamRole, Long> {
     List<IscSamTeamRole> findBySamTeamId(Long samTeamId);
+    boolean existsBySamTeamIdAndSamRoleId(Long samTeamId, Long samRoleId);
 }

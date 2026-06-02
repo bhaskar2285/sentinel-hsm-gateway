@@ -222,12 +222,15 @@ public class KeyService {
     private static String familyCodeForKeyType(String storedName, String requestHint) {
         if (storedName != null) {
             switch (storedName) {
-                case "ZMK":  return "000";
-                case "ZPK":  return "001";
-                case "KBPK": return "002";
-                case "TMK":  return "008";
-                case "DATA": return "00A";
-                default:     break;
+                case "ZMK":                    return "000";
+                case "ZPK": case "BDK":        return "001";
+                case "KBPK":                   return "002";
+                case "TMK": case "TPK":        return "008";
+                case "DATA": case "PVK":
+                case "CVK":
+                case "IMK-AC": case "IMK-SMI":
+                case "IMK-SMC":                return "00A";
+                default: break;
             }
         }
         return requestHint != null ? requestHint : "00A";
@@ -503,16 +506,20 @@ public class KeyService {
 
         Map<String, Object> params = new HashMap<>();
         OpCode op;
+        // Derive actual key type codes from DB — never hardcode, wrong LMK pair → error "10" on real HSM.
+        String wrapTypeCode = familyCodeForKeyType(zmk.getKeyType(), zmk.getKeyType());
+        String keyTypeCode  = familyCodeForKeyType(key.getKeyType(), key.getKeyType());
+
         if (isKeyBlock) {
-            // B0 — Form TR-31 / X9.143 Key Block
+            // B4 — Form TR-31 / X9.143 Key Block
             char formatChar = switch (req.getFormat().toUpperCase()) {
                 case "TR31_D" -> 'D';
                 case "TR31_B" -> 'B';
                 case "X9_143" -> 'X';
                 default       -> 'D';
             };
-            params.put("kbpkKeyType",  "002");          // KBPK / ZMK family code
-            params.put("keyKeyType",   String.format("%03d", req.getKeyType() == null ? 1 : req.getKeyType()));
+            params.put("kbpkKeyType",  wrapTypeCode);
+            params.put("keyKeyType",   keyTypeCode);
             params.put("kbpkScheme",   zmkScheme);
             params.put("kbpkUnderLmk", zmkHex);
             params.put("keyScheme",    keyScheme);
@@ -525,8 +532,8 @@ public class KeyService {
             op = OpCode.KEY_FORM_BLOCK;
         } else {
             // A8 — legacy ZMK-wrap (returns scheme+hex, no TR-31 envelope)
-            params.put("zmkKeyType",  "000");
-            params.put("keyKeyType",  String.format("%03d", req.getKeyType() == null ? 1 : req.getKeyType()));
+            params.put("zmkKeyType",  wrapTypeCode);
+            params.put("keyKeyType",  keyTypeCode);
             params.put("zmkScheme",   zmkScheme);
             params.put("zmkUnderLmk", zmkHex);
             params.put("keyScheme",   keyScheme);
@@ -567,24 +574,32 @@ public class KeyService {
             .filter(k -> bankFilter == null || (k.getBankRecId() != null && k.getBankRecId().equals(bankFilter)))
             .filter(k -> labelFilter == null || k.getLabel().contains(labelFilter))
             .filter(k -> keyTypeFilter == null || k.getKeyType().equals(keyTypeFilter))
-            .map(k -> KeySummaryResponse.builder()
-                .keyId(k.getKeyUuid().toString())
-                .label(k.getLabel())
-                .keyType(k.getKeyType())
-                .algo(k.getAlgo())
-                .keyLengthBits(k.getKeyLengthBits())
-                .status(k.getStatus())
-                .kcv(k.getKcv())
-                .bankRecId(k.getBankRecId())
-                .branchRecId(k.getBranchRecId())
-                .createdAt(k.getCreatedAt())
-                .build())
+            .map(k -> {
+                byte[] blob = k.getEncryptedBlob();
+                return KeySummaryResponse.builder()
+                    .keyId(k.getKeyUuid().toString())
+                    .label(k.getLabel())
+                    .keyType(k.getKeyType())
+                    .algo(k.getAlgo())
+                    .keyLengthBits(k.getKeyLengthBits())
+                    .status(k.getStatus())
+                    .kcv(k.getKcv())
+                    .bankRecId(k.getBankRecId())
+                    .branchRecId(k.getBranchRecId())
+                    .createdAt(k.getCreatedAt())
+                    .encryptedBlobHex(blob == null ? null : java.util.HexFormat.of().withUpperCase().formatHex(blob))
+                    .encryptedBlobLen(blob == null ? null : blob.length)
+                    .vendorOrigin(k.getVendorOrigin())
+                    .expiresAt(k.getExpiresAt())
+                    .build();
+            })
             .toList();
     }
 
     public KeyDetailResponse get(String keyId) {
         HsmKey k = keyRepo.findByKeyUuid(UUID.fromString(keyId))
             .orElseThrow(() -> new IllegalArgumentException("key not found: " + keyId));
+        byte[] blob = k.getEncryptedBlob();
         return KeyDetailResponse.builder()
             .keyId(k.getKeyUuid().toString())
             .label(k.getLabel())
@@ -605,6 +620,8 @@ public class KeyService {
             .createdAt(k.getCreatedAt())
             .activatedAt(k.getActivatedAt())
             .expiresAt(k.getExpiresAt())
+            .encryptedBlobHex(blob == null ? null : java.util.HexFormat.of().withUpperCase().formatHex(blob))
+            .encryptedBlobLen(blob == null ? null : blob.length)
             .build();
     }
 }

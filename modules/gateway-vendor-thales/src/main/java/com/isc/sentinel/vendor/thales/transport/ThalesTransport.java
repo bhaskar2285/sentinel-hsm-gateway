@@ -88,6 +88,11 @@ public class ThalesTransport {
         }
     }
 
+    public void evictNode(Long nodeId) {
+        GenericObjectPool<Socket> old = pools.remove(nodeId);
+        if (old != null) old.close();
+    }
+
     public void shutdown() {
         pools.values().forEach(GenericObjectPool::close);
         pools.clear();

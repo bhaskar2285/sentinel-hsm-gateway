@@ -27,4 +27,6 @@ public class KeyDetailResponse {
     private OffsetDateTime createdAt;
     private OffsetDateTime activatedAt;
     private OffsetDateTime expiresAt;
+    private String encryptedBlobHex;
+    private Integer encryptedBlobLen;
 }

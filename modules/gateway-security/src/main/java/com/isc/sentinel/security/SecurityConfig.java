@@ -22,7 +22,13 @@ public class SecurityConfig {
         "KEY_CREATE_RSA","KEY_CREATE_SYM","KEY_IMPORT","KEY_IMPORT_ZMK","KEY_EXPORT","KEY_READ","KEY_DELETE",
         "KEY_FORM_BLOCK",
         "CRYPTO_DECRYPT","CRYPTO_ENCRYPT","MAC_GEN","MAC_VRFY",
-        "PIN_VRFY","PIN_XLATE","ADMIN_POOL","ADMIN_AUDIT","ADMIN_RBAC","RAW_CMD"
+        "PIN_VRFY","PIN_XLATE","PIN_VERIFY","PIN_TRANSLATE",
+        "CVV_GEN","CVV_VERIFY","ARQC_VERIFY",
+        "PIN_GEN","PVV_GEN","IBM_OFFSET_GEN",
+        "KEY_COMPONENT_GEN","KEY_FORM_COMPONENTS","KEY_CHECK_VALUE",
+        "HSM_STATUS","HSM_ECHO","ARQC_VERIFY_EMV4",
+        "DCVV_VERIFY","CSC_CALC","CSC_VERIFY","HMAC_GEN","HMAC_VERIFY",
+        "ADMIN_AUDIT","ADMIN_RBAC","RAW_CMD"
     );
 
     @Bean
@@ -51,6 +57,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                    .requestMatchers("/api/v1/jwe/public-key").permitAll()
                     .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter)));

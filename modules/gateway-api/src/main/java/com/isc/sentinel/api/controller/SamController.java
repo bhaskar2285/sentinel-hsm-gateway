@@ -89,8 +89,16 @@ public class SamController {
     }
 
     // ---- team↔role binding ----
+    @GetMapping("/teams/{teamId}/roles")
+    public List<IscSamTeamRole> teamRoles(@PathVariable Long teamId) {
+        return teamRoleRepo.findBySamTeamId(teamId);
+    }
+
     @PostMapping("/teams/{teamId}/roles/{roleId}")
     public IscSamTeamRole bindTeamRole(@PathVariable Long teamId, @PathVariable Long roleId) {
+        if (teamRoleRepo.existsBySamTeamIdAndSamRoleId(teamId, roleId))
+            return teamRoleRepo.findBySamTeamId(teamId).stream()
+                .filter(r -> r.getSamRoleId().equals(roleId)).findFirst().orElseThrow();
         return teamRoleRepo.save(IscSamTeamRole.builder().samTeamId(teamId).samRoleId(roleId).build());
     }
 

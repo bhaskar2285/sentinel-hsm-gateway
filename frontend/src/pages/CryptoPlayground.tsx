@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cryptoApi } from '../api/crypto';
+import { keysApi, KeySummary } from '../api/keys';
 
 export default function CryptoPlayground() {
   const [keyId, setKeyId] = useState('');
@@ -8,6 +10,11 @@ export default function CryptoPlayground() {
   const [iv, setIv] = useState('');
   const [ciphertext, setCiphertext] = useState('');
   const [plaintext, setPlaintext] = useState('');
+
+  const { data: keys = [] } = useQuery<KeySummary[]>({
+    queryKey: ['keys'],
+    queryFn: () => keysApi.list(),
+  });
 
   const run = async () => {
     const r = await cryptoApi.decrypt({ keyId, ciphertextHex: ciphertext, mode, iv });
@@ -22,12 +29,21 @@ export default function CryptoPlayground() {
   return (
     <div className="max-w-2xl space-y-4">
       <h1 className="text-2xl font-semibold">Crypto Playground — Decrypt</h1>
-      <input
-        value={keyId}
-        onChange={(e) => setKeyId(e.target.value)}
-        placeholder="Key ID (UUID)"
-        className="input font-mono"
-      />
+      <div>
+        <div className="label">Key</div>
+        <select
+          value={keyId}
+          onChange={(e) => setKeyId(e.target.value)}
+          className="input"
+        >
+          <option value="">— pick a key —</option>
+          {keys.map((k) => (
+            <option key={k.keyId} value={k.keyId}>
+              {k.label} ({k.keyType}) · KCV {k.kcv ?? '—'}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <select
           value={mode}

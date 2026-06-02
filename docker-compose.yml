@@ -32,6 +32,11 @@ services:
       - "8090:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
 
   # Reference: existing thales-go-sim instances are run elsewhere (thales-artemis-lb compose).
   # Point this gateway at them via hsm_node table rows pointing to host.docker.internal:<sim-port>.

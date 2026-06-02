@@ -126,9 +126,14 @@ export default function AdminBanks() {
       {/* Branches of selected bank */}
       {selected && (
         <div className="space-y-2 border-t border-slate-200 pt-4">
-          <h2 className="text-sm font-medium text-slate-700">
-            Branches of {banks.data?.find(b => b.recId === selected)?.name}
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-slate-700">
+              Branches of {banks.data?.find(b => b.recId === selected)?.name}
+            </h2>
+            <button onClick={() => setSelected(null)} className="btn-secondary text-xs py-1 px-2">
+              ✕ Clear
+            </button>
+          </div>
           {branches.data?.length === 0 && <div className="text-xs text-slate-500">No branches.</div>}
           {branches.data?.map((br) => (
             <div key={br.recId} className="rounded-md border border-slate-200 p-3 text-sm">

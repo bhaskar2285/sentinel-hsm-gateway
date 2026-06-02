@@ -58,6 +58,44 @@ public final class Phase1Parser {
             case "B5" -> parseB5Body(s, pos, fields);
             case "M1" -> parseM1Body(s, pos, fields);
             case "M3" -> parseM3Body(s, pos, fields);
+            case "CB" -> parseCBBody(s, pos, fields);
+            case "DB" -> { /* no body — error code only */ }
+            case "CX" -> parseCXBody(s, pos, fields);
+            case "CZ" -> { /* no body — error code only */ }
+            case "KR" -> parseKRBody(s, pos, fields);
+            // Phase 2 additions
+            case "JB" -> parseJBBody(s, pos, fields);
+            case "DH" -> parseDHBody(s, pos, fields);
+            case "DF" -> parseDFBody(s, pos, fields);
+            case "DD" -> { /* no body — PIN verify result in errCode */ }
+            case "EB" -> { /* no body — PIN verify result in errCode */ }
+            case "ED" -> { /* no body — PIN verify result in errCode */ }
+            case "CD" -> parseCDBody(s, pos, fields);
+            case "BB" -> parseBBBody(s, pos, fields);
+            case "EF" -> parseEFBody(s, pos, fields);
+            case "M7" -> parseM7Body(s, pos, fields);
+            case "M9" -> { /* no body — MAC verify result in errCode */ }
+            case "GD" -> parseGDBody(s, pos, fields);
+            case "JD" -> parseJDBody(s, pos, fields);
+            case "JF" -> parseJDBody(s, pos, fields); // same structure as JD
+            case "JH" -> parseJHBody(s, pos, fields);
+            case "NP" -> parseNPBody(s, pos, fields);
+            case "A3" -> parseA3Body(s, pos, fields);
+            case "A5" -> parseA5Body(s, pos, fields);
+            case "BV" -> parseBVBody(s, pos, fields);
+            case "B3" -> parseB3Body(s, pos, fields);
+            case "KX" -> parseKRBody(s, pos, fields);  // same structure as KR
+            case "LR" -> parseLRBody(s, pos, fields);
+            case "LT" -> {} // no body beyond error code
+            case "PN" -> {} // no body beyond error code
+            case "RZ" -> parseRZBody(s, pos, fields);
+            // New commands
+            case "HD" -> parseA1Body(s, pos, fields); // same structure as A1
+            case "IB" -> parseA1Body(s, pos, fields); // same structure as A1
+            case "NH" -> parseNHBody(s, pos, fields);
+            case "OB" -> parseOBBody(s, pos, fields);
+            case "JT" -> parseCDBody(s, pos, fields); // same structure as CD
+            case "VB" -> {}                           // no body — verify result in errCode
             default   -> fields.put("raw", s.substring(pos));
         }
         return new Parsed(respCode, errCode, fields);
@@ -269,5 +307,284 @@ public final class Phase1Parser {
         int bytes = plain.length() / 2;
         String body = "M3" + errCode + String.format("%04d", bytes) + plain;
         return body.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    // =====================================================================
+    // CB — Translate PIN Block response
+    // Body: PINBlock(16H)
+    // =====================================================================
+
+    private static void parseCBBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) f.put("pinBlock", s.substring(pos, pos + 16));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // CX — Generate CVV response
+    // Body: CVV(3H)
+    // =====================================================================
+
+    private static void parseCXBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 3) f.put("cvv", s.substring(pos, pos + 3));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // KR — Verify ARQC / Generate ARPC response
+    // Body: ARPC(16H)
+    // =====================================================================
+
+    private static void parseKRBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) f.put("arpc", s.substring(pos, pos + 16));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // JB — Generate Random PIN response
+    // Body: PINLen(2N) + PINUnderLMK(16H)
+    // =====================================================================
+
+    private static void parseJBBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 18) { f.put("raw", s.substring(pos)); return; }
+        f.put("pinLen", s.substring(pos, pos + 2)); pos += 2;
+        f.put("pinUnderLmk", s.substring(pos, pos + 16));
+    }
+
+    // =====================================================================
+    // DH — Generate VISA PVV response
+    // Body: PVV(4N)
+    // =====================================================================
+
+    private static void parseDHBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 4) f.put("pvv", s.substring(pos, pos + 4));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // DF — Generate IBM PIN Offset response
+    // Body: Offset(8N)
+    // =====================================================================
+
+    private static void parseDFBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 8) f.put("offset", s.substring(pos, pos + 8));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // CD — Translate PIN ZPK→ZPK response
+    // Body: PINBlock(16H) + DstFmt(2N)
+    // =====================================================================
+
+    private static void parseCDBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) {
+            f.put("pinBlock", s.substring(pos, pos + 16)); pos += 16;
+            if (s.length() - pos >= 2) f.put("dstFormat", s.substring(pos, pos + 2));
+        } else { f.put("raw", s.substring(pos)); }
+    }
+
+    // =====================================================================
+    // BB — Encrypt Clear PIN under ZPK response
+    // Body: PINBlock(16H)
+    // =====================================================================
+
+    private static void parseBBBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) f.put("pinBlock", s.substring(pos, pos + 16));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // EF — Derive PIN from IBM Offset response
+    // Body: PINLen(2N) + PIN(variable hex digits, PINLen chars)
+    // =====================================================================
+
+    private static void parseEFBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 2) { f.put("raw", s.substring(pos)); return; }
+        String lenStr = s.substring(pos, pos + 2); pos += 2;
+        f.put("pinLen", lenStr);
+        try {
+            int len = Integer.parseInt(lenStr);
+            if (s.length() - pos >= len) f.put("pin", s.substring(pos, pos + len));
+            else f.put("pin", s.substring(pos));
+        } catch (NumberFormatException e) {
+            f.put("pin", s.substring(pos));
+        }
+    }
+
+    // =====================================================================
+    // M7 — Generate MAC response
+    // Body: MAC(16H)
+    // =====================================================================
+
+    private static void parseM7Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) f.put("mac", s.substring(pos, pos + 16));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // GD — Export ZPK under ZMK response
+    // Body: ZPKScheme(1A)+ZPKUnderZMK(hex) + KCV(6H)
+    // =====================================================================
+
+    private static void parseGDBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
+        String scheme = s.substring(pos, pos + 1); pos += 1;
+        f.put("scheme", scheme);
+        int remaining = s.length() - pos - 6;
+        int expected;
+        try {
+            expected = KeyScheme.hexLenForScheme(scheme.charAt(0));
+        } catch (IllegalArgumentException ex) {
+            expected = remaining;
+        }
+        if (expected > remaining) expected = remaining;
+        f.put("zpkUnderZmk", s.substring(pos, pos + expected)); pos += expected;
+        f.put("kcv", s.substring(pos, pos + 6));
+    }
+
+    // =====================================================================
+    // JD/JF — Translate PIN TPK/ZPK→LMK response
+    // Body: PINLen(2N) + PINUnderLMK(16H)
+    // =====================================================================
+
+    private static void parseJDBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 18) { f.put("raw", s.substring(pos)); return; }
+        f.put("pinLen", s.substring(pos, pos + 2)); pos += 2;
+        f.put("pinUnderLmk", s.substring(pos, pos + 16));
+    }
+
+    // =====================================================================
+    // JH — Translate PIN LMK→ZPK response
+    // Body: PINBlock(16H)
+    // =====================================================================
+
+    private static void parseJHBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) f.put("pinBlock", s.substring(pos, pos + 16));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // NP — HSM Status response
+    // Body: LmkCheckValue(16H) + Firmware(8A) + DspFw(4A) + Seq(4H) + Flags(1A)
+    // =====================================================================
+
+    private static void parseNPBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 16) { f.put("lmkCheckValue", s.substring(pos, pos + 16)); pos += 16; }
+        if (s.length() - pos >= 8)  { f.put("firmware",      s.substring(pos, pos + 8));  pos += 8;  }
+        if (s.length() - pos >= 4)  { f.put("dspFirmware",   s.substring(pos, pos + 4));  pos += 4;  }
+        if (s.length() - pos >= 4)  { f.put("sequence",      s.substring(pos, pos + 4));  pos += 4;  }
+        if (s.length() - pos >= 1)  { f.put("flags",         s.substring(pos, pos + 1));             }
+    }
+
+    // =====================================================================
+    // A3 — Generate Key Component response
+    // Body: Scheme(1A) + Component(hex per scheme)
+    // =====================================================================
+
+    private static void parseA3Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 2) { f.put("raw", s.substring(pos)); return; }
+        String scheme = s.substring(pos, pos + 1); pos += 1;
+        f.put("scheme", scheme);
+        int hex;
+        try { hex = KeyScheme.hexLenForScheme(scheme.charAt(0)); }
+        catch (IllegalArgumentException ex) { hex = s.length() - pos; }
+        f.put("component", s.substring(pos, Math.min(pos + hex, s.length())));
+    }
+
+    // =====================================================================
+    // A5 — Form Key from Components response
+    // Body: Scheme(1A) + KeyUnderLMK(hex per scheme) + KCV(6H)
+    // =====================================================================
+
+    private static void parseA5Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
+        String scheme = s.substring(pos, pos + 1); pos += 1;
+        f.put("scheme", scheme);
+        int remaining = s.length() - pos - 6;
+        int expected;
+        try { expected = KeyScheme.hexLenForScheme(scheme.charAt(0)); }
+        catch (IllegalArgumentException ex) { expected = remaining; }
+        if (expected > remaining) expected = remaining;
+        f.put("keyUnderLmk", s.substring(pos, pos + expected)); pos += expected;
+        f.put("kcv", s.substring(pos, pos + 6));
+    }
+
+    // =====================================================================
+    // BV — Generate Key Check Value response
+    // Body: CheckValue(6H)
+    // =====================================================================
+
+    private static void parseBVBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos >= 6) f.put("kcv", s.substring(pos, pos + 6));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // B3 — Echo response
+    // Body: echoed data (ASCII)
+    // =====================================================================
+
+    private static void parseB3Body(String s, int pos, Map<String, Object> f) {
+        f.put("echo", s.substring(pos));
+    }
+
+    // =====================================================================
+    // LR — Generate HMAC response
+    // Body: HMACLen(4N) + HMAC(hex, HMACLen*2 chars)
+    // =====================================================================
+
+    private static void parseLRBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 4) { f.put("raw", s.substring(pos)); return; }
+        int hmacBytes = Integer.parseInt(s.substring(pos, pos + 4)); pos += 4;
+        int hmacHexLen = hmacBytes * 2;
+        if (s.length() - pos >= hmacHexLen) f.put("hmac", s.substring(pos, pos + hmacHexLen));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // RZ — Calculate/Verify CSC response
+    // Mode '3' (calc): Mode(1N) + CSC5(5N) + CSC4(4N) + CSC3(3N)
+    // Mode '4' (verify): Mode(1N) + R5(1N) + R4(1N) + R3(1N)
+    // =====================================================================
+
+    // =====================================================================
+    // NH — Decrypt Encrypted PIN response
+    // Body: PINLen(2N) + ClearPIN(variable decimal digits)
+    // =====================================================================
+
+    private static void parseNHBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 3) { f.put("raw", s.substring(pos)); return; }
+        int pinLen;
+        try { pinLen = Integer.parseInt(s.substring(pos, pos + 2)); } catch (NumberFormatException e) { f.put("raw", s.substring(pos)); return; }
+        pos += 2;
+        if (s.length() - pos >= pinLen) f.put("clearPin", s.substring(pos, pos + pinLen));
+        else f.put("raw", s.substring(pos));
+    }
+
+    // =====================================================================
+    // OB — Generate Random Data response
+    // Body: Data(hex, numBytes*2 chars)
+    // =====================================================================
+
+    private static void parseOBBody(String s, int pos, Map<String, Object> f) {
+        f.put("dataHex", s.substring(pos));
+    }
+
+    private static void parseRZBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1) { f.put("raw", s.substring(pos)); return; }
+        String mode = s.substring(pos, pos + 1); pos += 1;
+        f.put("mode", mode);
+        if ("3".equals(mode)) {
+            if (s.length() - pos < 12) { f.put("raw", s.substring(pos)); return; }
+            f.put("csc5", s.substring(pos, pos + 5)); pos += 5;
+            f.put("csc4", s.substring(pos, pos + 4)); pos += 4;
+            f.put("csc3", s.substring(pos, pos + 3));
+        } else if ("4".equals(mode)) {
+            if (s.length() - pos < 3) { f.put("raw", s.substring(pos)); return; }
+            f.put("result5", s.substring(pos, pos + 1)); pos += 1;
+            f.put("result4", s.substring(pos, pos + 1)); pos += 1;
+            f.put("result3", s.substring(pos, pos + 1));
+        } else {
+            f.put("raw", s.substring(pos));
+        }
     }
 }
