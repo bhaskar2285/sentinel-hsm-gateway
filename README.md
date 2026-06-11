@@ -155,4 +155,4 @@ Default console credentials: `admin` / `sentinel123`
 
 ## Frontend
 
-Separate repo: `sentinelvaultui`.
+Separate repo: `sentinel-vault-ui`.
