@@ -20,9 +20,9 @@ import java.util.Map;
  * Each command has paired build*() (params -> wire) and parse*() (wire -> params).
  * Round-trip safe: parse(build(p)) == p (modulo case normalisation on hex).
  */
-public final class Phase1Builder {
+public final class ThalesCmdBuilder {
 
-    private Phase1Builder() {}
+    private ThalesCmdBuilder() {}
 
     // =====================================================================
     // EI — Generate RSA Key Pair

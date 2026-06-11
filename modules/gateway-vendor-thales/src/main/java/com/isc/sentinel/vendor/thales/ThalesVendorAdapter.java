@@ -1,8 +1,8 @@
 package com.isc.sentinel.vendor.thales;
 
 import com.isc.sentinel.spi.*;
-import com.isc.sentinel.vendor.thales.command.Phase1Builder;
-import com.isc.sentinel.vendor.thales.command.Phase1Parser;
+import com.isc.sentinel.vendor.thales.command.ThalesCmdBuilder;
+import com.isc.sentinel.vendor.thales.command.ThalesCmdParser;
 import com.isc.sentinel.vendor.thales.command.ThalesCommandCode;
 import com.isc.sentinel.vendor.thales.command.ThalesErrorCode;
 import com.isc.sentinel.vendor.thales.transport.ThalesTransport;
@@ -107,7 +107,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
                 log.debug("HSM RX op={} node={} hex={}", cmd.getOp(), node.getId(),
                     java.util.HexFormat.of().withUpperCase().formatHex(respBody));
             }
-            Phase1Parser.Parsed parsed = Phase1Parser.parse(respBody, header.length(), expectedResponse(cmd));
+            ThalesCmdParser.Parsed parsed = ThalesCmdParser.parse(respBody, header.length(), expectedResponse(cmd));
 
             String status = "00".equals(parsed.errorCode()) ? "OK" : "ERROR";
             if (!"00".equals(parsed.errorCode())) {
@@ -143,53 +143,53 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
 
     private HsmWireMessage buildRequest(GatewayCommand cmd) {
         return switch (cmd.getOp()) {
-            case RSA_KEY_GEN                 -> Phase1Builder.buildEI(header, cmd.getParams());
-            case KEY_GEN                     -> Phase1Builder.buildA0(header, cmd.getParams());
-            case KEY_IMPORT_RSA_WRAPPED      -> Phase1Builder.buildGI(header, cmd.getParams());
-            case KEY_IMPORT_ZMK              -> Phase1Builder.buildA6(header, cmd.getParams());
-            case KEY_EXPORT                  -> Phase1Builder.buildA8(header, cmd.getParams());
-            case KEY_FORM_BLOCK              -> Phase1Builder.buildB4(header, cmd.getParams());
-            case DATA_ENCRYPT                -> Phase1Builder.buildM0(header, cmd.getParams());
-            case DATA_DECRYPT                -> Phase1Builder.buildM2(header, cmd.getParams());
-            case PIN_TRANSLATE               -> Phase1Builder.buildCA(header, cmd.getParams());
-            case PIN_VERIFY                  -> Phase1Builder.buildDA(header, cmd.getParams());
-            case CVV_GEN                     -> Phase1Builder.buildCW(header, cmd.getParams());
-            case CVV_VERIFY                  -> Phase1Builder.buildCY(header, cmd.getParams());
-            case ARQC_VERIFY                 -> Phase1Builder.buildKQ(header, cmd.getParams());
-            case PIN_GEN                     -> Phase1Builder.buildJA(header, cmd.getParams());
-            case PVV_GEN                     -> Phase1Builder.buildDG(header, cmd.getParams());
-            case IBM_OFFSET_GEN              -> Phase1Builder.buildDE(header, cmd.getParams());
-            case PIN_VERIFY_VISA             -> Phase1Builder.buildDC(header, cmd.getParams());
-            case INTERCHANGE_PIN_VERIFY_IBM  -> Phase1Builder.buildEA(header, cmd.getParams());
-            case INTERCHANGE_PIN_VERIFY_VISA -> Phase1Builder.buildEC(header, cmd.getParams());
-            case PIN_TRANSLATE_ZPK           -> Phase1Builder.buildCC(header, cmd.getParams());
-            case CLEAR_PIN_ENCRYPT           -> Phase1Builder.buildBA(header, cmd.getParams());
-            case PIN_DERIVE_IBM              -> Phase1Builder.buildEE(header, cmd.getParams());
-            case MAC_GEN                     -> Phase1Builder.buildM6(header, cmd.getParams());
-            case MAC_VERIFY                  -> Phase1Builder.buildM8(header, cmd.getParams());
-            case KEY_EXPORT_ZMK              -> Phase1Builder.buildGC(header, cmd.getParams());
+            case RSA_KEY_GEN                 -> ThalesCmdBuilder.buildEI(header, cmd.getParams());
+            case KEY_GEN                     -> ThalesCmdBuilder.buildA0(header, cmd.getParams());
+            case KEY_IMPORT_RSA_WRAPPED      -> ThalesCmdBuilder.buildGI(header, cmd.getParams());
+            case KEY_IMPORT_ZMK              -> ThalesCmdBuilder.buildA6(header, cmd.getParams());
+            case KEY_EXPORT                  -> ThalesCmdBuilder.buildA8(header, cmd.getParams());
+            case KEY_FORM_BLOCK              -> ThalesCmdBuilder.buildB4(header, cmd.getParams());
+            case DATA_ENCRYPT                -> ThalesCmdBuilder.buildM0(header, cmd.getParams());
+            case DATA_DECRYPT                -> ThalesCmdBuilder.buildM2(header, cmd.getParams());
+            case PIN_TRANSLATE               -> ThalesCmdBuilder.buildCA(header, cmd.getParams());
+            case PIN_VERIFY                  -> ThalesCmdBuilder.buildDA(header, cmd.getParams());
+            case CVV_GEN                     -> ThalesCmdBuilder.buildCW(header, cmd.getParams());
+            case CVV_VERIFY                  -> ThalesCmdBuilder.buildCY(header, cmd.getParams());
+            case ARQC_VERIFY                 -> ThalesCmdBuilder.buildKQ(header, cmd.getParams());
+            case PIN_GEN                     -> ThalesCmdBuilder.buildJA(header, cmd.getParams());
+            case PVV_GEN                     -> ThalesCmdBuilder.buildDG(header, cmd.getParams());
+            case IBM_OFFSET_GEN              -> ThalesCmdBuilder.buildDE(header, cmd.getParams());
+            case PIN_VERIFY_VISA             -> ThalesCmdBuilder.buildDC(header, cmd.getParams());
+            case INTERCHANGE_PIN_VERIFY_IBM  -> ThalesCmdBuilder.buildEA(header, cmd.getParams());
+            case INTERCHANGE_PIN_VERIFY_VISA -> ThalesCmdBuilder.buildEC(header, cmd.getParams());
+            case PIN_TRANSLATE_ZPK           -> ThalesCmdBuilder.buildCC(header, cmd.getParams());
+            case CLEAR_PIN_ENCRYPT           -> ThalesCmdBuilder.buildBA(header, cmd.getParams());
+            case PIN_DERIVE_IBM              -> ThalesCmdBuilder.buildEE(header, cmd.getParams());
+            case MAC_GEN                     -> ThalesCmdBuilder.buildM6(header, cmd.getParams());
+            case MAC_VERIFY                  -> ThalesCmdBuilder.buildM8(header, cmd.getParams());
+            case KEY_EXPORT_ZMK              -> ThalesCmdBuilder.buildGC(header, cmd.getParams());
             case PIN_TO_LMK                  -> "ZPK".equals(cmd.getParams().get("inputKeyScheme"))
-                                                 ? Phase1Builder.buildJE(header, cmd.getParams())
-                                                 : Phase1Builder.buildJC(header, cmd.getParams());
-            case PIN_FROM_LMK                -> Phase1Builder.buildJG(header, cmd.getParams());
-            case KEY_COMPONENT_GEN           -> Phase1Builder.buildA2(header, cmd.getParams());
-            case KEY_FORM_COMPONENTS         -> Phase1Builder.buildA4(header, cmd.getParams());
-            case KEY_CHECK_VALUE             -> Phase1Builder.buildBU(header, cmd.getParams());
-            case HSM_ECHO                    -> Phase1Builder.buildB2(header, cmd.getParams());
-            case HSM_STATUS                  -> Phase1Builder.buildNO(header, cmd.getParams());
-            case ARQC_VERIFY_EMV4            -> Phase1Builder.buildKW(header, cmd.getParams());
-            case DCVV_VERIFY                 -> Phase1Builder.buildPM(header, cmd.getParams());
-            case CSC_CALC                    -> Phase1Builder.buildRY(header, cmd.getParams());
-            case CSC_VERIFY                  -> Phase1Builder.buildRY(header, cmd.getParams());
-            case HMAC_GEN                    -> Phase1Builder.buildLQ(header, cmd.getParams());
-            case HMAC_VERIFY                 -> Phase1Builder.buildLS(header, cmd.getParams());
-            case KEY_GEN_TPK                 -> Phase1Builder.buildHC(header, cmd.getParams());
-            case KEY_GEN_ZPK                 -> Phase1Builder.buildIA(header, cmd.getParams());
-            case PIN_DECRYPT                 -> Phase1Builder.buildNG(header, cmd.getParams());
-            case RANDOM_DATA                 -> Phase1Builder.buildOA(header, cmd.getParams());
-            case PIN_TRANSLATE_ZPK2          -> Phase1Builder.buildJS(header, cmd.getParams());
-            case MAC_VERIFY_ALT              -> Phase1Builder.buildVA(header, cmd.getParams());
-            case NET_HEALTH                  -> Phase1Builder.buildNC(header, cmd.getParams());
+                                                 ? ThalesCmdBuilder.buildJE(header, cmd.getParams())
+                                                 : ThalesCmdBuilder.buildJC(header, cmd.getParams());
+            case PIN_FROM_LMK                -> ThalesCmdBuilder.buildJG(header, cmd.getParams());
+            case KEY_COMPONENT_GEN           -> ThalesCmdBuilder.buildA2(header, cmd.getParams());
+            case KEY_FORM_COMPONENTS         -> ThalesCmdBuilder.buildA4(header, cmd.getParams());
+            case KEY_CHECK_VALUE             -> ThalesCmdBuilder.buildBU(header, cmd.getParams());
+            case HSM_ECHO                    -> ThalesCmdBuilder.buildB2(header, cmd.getParams());
+            case HSM_STATUS                  -> ThalesCmdBuilder.buildNO(header, cmd.getParams());
+            case ARQC_VERIFY_EMV4            -> ThalesCmdBuilder.buildKW(header, cmd.getParams());
+            case DCVV_VERIFY                 -> ThalesCmdBuilder.buildPM(header, cmd.getParams());
+            case CSC_CALC                    -> ThalesCmdBuilder.buildRY(header, cmd.getParams());
+            case CSC_VERIFY                  -> ThalesCmdBuilder.buildRY(header, cmd.getParams());
+            case HMAC_GEN                    -> ThalesCmdBuilder.buildLQ(header, cmd.getParams());
+            case HMAC_VERIFY                 -> ThalesCmdBuilder.buildLS(header, cmd.getParams());
+            case KEY_GEN_TPK                 -> ThalesCmdBuilder.buildHC(header, cmd.getParams());
+            case KEY_GEN_ZPK                 -> ThalesCmdBuilder.buildIA(header, cmd.getParams());
+            case PIN_DECRYPT                 -> ThalesCmdBuilder.buildNG(header, cmd.getParams());
+            case RANDOM_DATA                 -> ThalesCmdBuilder.buildOA(header, cmd.getParams());
+            case PIN_TRANSLATE_ZPK2          -> ThalesCmdBuilder.buildJS(header, cmd.getParams());
+            case MAC_VERIFY_ALT              -> ThalesCmdBuilder.buildVA(header, cmd.getParams());
+            case NET_HEALTH                  -> ThalesCmdBuilder.buildNC(header, cmd.getParams());
             default -> throw new UnsupportedOperationException("Thales op not supported: " + cmd.getOp());
         };
     }

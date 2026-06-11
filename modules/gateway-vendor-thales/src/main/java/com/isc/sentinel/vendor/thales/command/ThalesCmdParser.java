@@ -17,9 +17,9 @@ import java.util.Map;
  * Wire framing handled by caller — these helpers operate on the body that follows the
  * 2-byte length prefix and the echoed header.
  */
-public final class Phase1Parser {
+public final class ThalesCmdParser {
 
-    private Phase1Parser() {}
+    private ThalesCmdParser() {}
 
     public record Parsed(String responseCode, String errorCode, Map<String, Object> fields) {}
 
