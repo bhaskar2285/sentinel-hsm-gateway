@@ -38,9 +38,9 @@ management:
 
 sentinel:
   thales:
-    header: SENT
-    connect-timeout-ms: 5000
-    read-timeout-ms: 10000
+    header: "0000"
+    connect-timeout-ms: 60000
+    read-timeout-ms: 60000
     pool-max-per-node: 8
 
 springdoc:

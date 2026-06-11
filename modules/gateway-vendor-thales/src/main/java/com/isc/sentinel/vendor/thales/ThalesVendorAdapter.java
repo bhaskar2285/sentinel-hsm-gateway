@@ -70,6 +70,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
 
     private final ThalesTransport transport;
     private final HsmHeader header;
+    private final int connectTimeoutMs;
 
     public ThalesVendorAdapter(
         @Value("${sentinel.thales.connect-timeout-ms:5000}") int connectTimeoutMs,
@@ -79,6 +80,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
         @Value("${sentinel.thales.tls.enabled:false}")       boolean tls,
         @Value("${sentinel.thales.tls.insecure-skip-verify:false}") boolean tlsInsecureSkipVerify
     ) {
+        this.connectTimeoutMs = connectTimeoutMs;
         this.transport = new ThalesTransport(connectTimeoutMs, readTimeoutMs, maxPerNode, tls, tlsInsecureSkipVerify);
         this.header = new HsmHeader(headerText);
     }
@@ -244,10 +246,8 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
 
     @Override
     public boolean health(HsmNodeRef node) {
-        // NC = HSM status (echo). TODO use real status cmd.
-        try {
-            byte[] hb = new HsmWireMessage(header, "NC", new byte[0], null).toWireBytes();
-            transport.roundTrip(node, hb);
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress(node.getHost(), node.getPort()), connectTimeoutMs);
             return true;
         } catch (Exception e) {
             return false;

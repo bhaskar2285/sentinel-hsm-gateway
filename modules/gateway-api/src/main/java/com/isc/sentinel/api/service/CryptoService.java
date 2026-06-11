@@ -449,7 +449,7 @@ public class CryptoService {
         HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
             .orElseThrow(() -> new IllegalArgumentException("key not found: " + req.getKeyId()));
         String blob = blobStr(key);
-        String keyType = req.getKeyType() != null ? req.getKeyType() : familyCodeForKeyType(key.getKeyType());
+        String keyType = req.getKeyType() != null ? req.getKeyType() : buCodeForKeyType(key.getKeyType());
         Map<String, Object> p = new HashMap<>();
         p.put("keyType", keyType);
         p.put("scheme", blob.substring(0,1));
@@ -697,6 +697,18 @@ public class CryptoService {
             case "TMK", "TPK" -> "008";
             case "DATA", "PVK", "CVK", "IMK-AC", "IMK-SMI", "IMK-SMC" -> "00A";
             default     -> "00A";
+        };
+    }
+
+    // BU (key check value) uses different LMK pair codes than A8/A0
+    private static String buCodeForKeyType(String name) {
+        if (name == null) return "00A";
+        return switch (name) {
+            case "ZMK"           -> "001";
+            case "ZPK", "BDK"   -> "011";
+            case "TMK", "TPK"   -> "008";
+            case "KBPK"         -> "002";
+            default              -> "00A";
         };
     }
 }

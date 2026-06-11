@@ -23,15 +23,13 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL:  jdbc:postgresql://postgres:5432/sentinel
+      DB_URL:  jdbc:postgresql://127.0.0.1:5434/sentinel
       DB_USER: sentinel
       DB_PASS: sentinel
+      SERVER_PORT: 8090
       OAUTH_ISSUER: ${OAUTH_ISSUER:-}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-    ports:
-      - "8090:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
     logging:
       driver: "json-file"
       options:
