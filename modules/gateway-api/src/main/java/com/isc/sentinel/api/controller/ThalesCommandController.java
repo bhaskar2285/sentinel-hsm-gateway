@@ -12,7 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/thales/command")
+@RequestMapping("/thales/command")
 public class ThalesCommandController {
 
     private final Map<String, ThalesCommandService> servicesByCode;
