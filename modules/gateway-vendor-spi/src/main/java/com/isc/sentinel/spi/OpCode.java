@@ -65,5 +65,6 @@ public enum OpCode {
     PIN_DECRYPT,                 // Thales NG/NH — Decrypt Encrypted PIN
     RANDOM_DATA,                 // Thales OA/OB — Generate Random Data
     PIN_TRANSLATE_ZPK2,          // Thales JS/JT — Translate PIN ZPK→ZPK (variant 2)
-    MAC_VERIFY_ALT               // Thales VA/VB — Verify MAC (full-format variant)
+    MAC_VERIFY_ALT,              // Thales VA/VB — Verify MAC (full-format variant)
+    NET_HEALTH                   // Thales NC/ND — Network Connectivity Check
 }

@@ -877,6 +877,13 @@ public final class Phase1Builder {
         return new HsmWireMessage(header, "NO", new byte[0], null);
     }
 
+    // NC — Network Connectivity Check, p.337
+    // Body: (empty)
+    // Response ND: ErrCode(2)
+    public static HsmWireMessage buildNC(HsmHeader header, Map<String, Object> params) {
+        return new HsmWireMessage(header, "NC", new byte[0], null);
+    }
+
     // =====================================================================
     // B2 — Echo / Loopback, p.75
     // Body: arbitrary data

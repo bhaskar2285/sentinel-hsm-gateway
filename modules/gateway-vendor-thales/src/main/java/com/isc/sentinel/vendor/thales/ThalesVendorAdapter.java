@@ -65,7 +65,8 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
         OpCode.PIN_DECRYPT,
         OpCode.RANDOM_DATA,
         OpCode.PIN_TRANSLATE_ZPK2,
-        OpCode.MAC_VERIFY_ALT
+        OpCode.MAC_VERIFY_ALT,
+        OpCode.NET_HEALTH
     );
 
     private final ThalesTransport transport;
@@ -188,6 +189,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case RANDOM_DATA                 -> Phase1Builder.buildOA(header, cmd.getParams());
             case PIN_TRANSLATE_ZPK2          -> Phase1Builder.buildJS(header, cmd.getParams());
             case MAC_VERIFY_ALT              -> Phase1Builder.buildVA(header, cmd.getParams());
+            case NET_HEALTH                  -> Phase1Builder.buildNC(header, cmd.getParams());
             default -> throw new UnsupportedOperationException("Thales op not supported: " + cmd.getOp());
         };
     }
@@ -240,6 +242,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case RANDOM_DATA                 -> ThalesCommandCode.OA.response();
             case PIN_TRANSLATE_ZPK2          -> ThalesCommandCode.JS.response();
             case MAC_VERIFY_ALT              -> ThalesCommandCode.VA.response();
+            case NET_HEALTH                  -> ThalesCommandCode.NC.response();
             default -> throw new UnsupportedOperationException("no Thales mapping: " + cmd.getOp());
         };
     }

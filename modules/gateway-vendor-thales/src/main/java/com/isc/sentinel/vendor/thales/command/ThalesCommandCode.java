@@ -66,7 +66,8 @@ public enum ThalesCommandCode {
     NG("NG", "NH", "Decrypt Encrypted PIN", 0),
     OA("OA", "OB", "Generate Random Data", 0),
     JS("JS", "JT", "Translate PIN ZPK -> ZPK (variant 2)", 0),
-    VA("VA", "VB", "Verify MAC (full-format variant)", 0);
+    VA("VA", "VB", "Verify MAC (full-format variant)", 0),
+    NC("NC", "ND", "Network Connectivity Check", 337);
 
     private final String request;
     private final String response;
