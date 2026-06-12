@@ -260,12 +260,92 @@ Response: SymKeyGenResponse{keyId, kcv, scheme, ...}
 | POST | `/api/v1/crypto/hsm/echo` | B2 | Echo loopback |
 
 ### Raw Thales Commands
+
+All commands share the same pattern:
 ```
 POST /thales/command/{CMD}
+Authorization: Bearer <token>
+Content-Type: application/json
 Body: raw params map (HSM-native codes)
-Auth: OP_RAW_CMD required
+Auth required: OP_RAW_CMD
 ```
-All 44 commands supported (see README for full list).
+
+#### ✅ Built + HSM Tested
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/NC` | Network connectivity check |
+| POST | `/thales/command/A0` | Generate symmetric key under LMK |
+| POST | `/thales/command/A6` | Import key ZMK-encrypted → LMK |
+| POST | `/thales/command/A8` | Export key LMK → ZMK encryption |
+| POST | `/thales/command/BU` | Generate key check value (KCV) |
+| POST | `/thales/command/GC` | Export ZPK from LMK to ZMK |
+
+#### 🔶 Built, Not HSM Tested
+
+**Key Management**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/A2` | Generate random key component (clear) |
+| POST | `/thales/command/A4` | Form key from encrypted components |
+| POST | `/thales/command/B4` | Form TR-31 / X9.143 key block |
+| POST | `/thales/command/EI` | Generate RSA key pair |
+| POST | `/thales/command/GI` | Import key wrapped under RSA public key |
+| POST | `/thales/command/HC` | Generate TPK under LMK |
+| POST | `/thales/command/IA` | Generate ZPK under LMK |
+
+**Encrypt / Decrypt / MAC**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/M0` | Encrypt data block |
+| POST | `/thales/command/M2` | Decrypt data block |
+| POST | `/thales/command/M6` | Generate MAC |
+| POST | `/thales/command/M8` | Verify MAC |
+| POST | `/thales/command/VA` | Verify MAC (full-format variant) |
+| POST | `/thales/command/LQ` | Generate HMAC (SPA2 AAV) |
+| POST | `/thales/command/LS` | Verify HMAC |
+| POST | `/thales/command/OA` | Generate random data |
+
+**PIN Operations**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/JA` | Generate random PIN under LMK |
+| POST | `/thales/command/BA` | Encrypt clear PIN under ZPK |
+| POST | `/thales/command/NG` | Decrypt PIN block to clear |
+| POST | `/thales/command/JC` | Translate PIN TPK → LMK |
+| POST | `/thales/command/JE` | Translate PIN ZPK → LMK |
+| POST | `/thales/command/JG` | Translate PIN LMK → ZPK |
+| POST | `/thales/command/CC` | Translate PIN ZPK → ZPK |
+| POST | `/thales/command/JS` | Translate PIN ZPK → ZPK (variant 2) |
+| POST | `/thales/command/CA` | Translate PIN TPK → ZPK/BDK |
+| POST | `/thales/command/DA` | Verify terminal PIN (IBM 3624 offset) |
+| POST | `/thales/command/DC` | Verify terminal PIN (VISA PVV) |
+| POST | `/thales/command/EA` | Verify interchange PIN (IBM 3624) |
+| POST | `/thales/command/EC` | Verify interchange PIN (VISA PVV) |
+| POST | `/thales/command/DE` | Generate IBM PIN offset |
+| POST | `/thales/command/DG` | Generate VISA PVV |
+| POST | `/thales/command/EE` | Derive PIN from IBM offset |
+
+**CVV / EMV**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/CW` | Generate CVV/CVC/CVV2 |
+| POST | `/thales/command/CY` | Verify CVV/CVC/CVV2 |
+| POST | `/thales/command/KQ` | Verify ARQC / Generate ARPC (EMV chip) |
+| POST | `/thales/command/KW` | Verify ARQC / Generate ARPC (EMV 4.x) |
+| POST | `/thales/command/PM` | Verify dynamic CVV/CVC (dCVV CVN17) |
+| POST | `/thales/command/RY` | Calculate / verify card security code |
+
+**Diagnostics**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/thales/command/B2` | Echo / loopback |
+| POST | `/thales/command/NO` | HSM status (firmware, LMK check value) |
 
 ### Admin / Fleet
 | Method | Path | Description |
@@ -490,11 +570,12 @@ curl http://localhost:8090/actuator/health
 
 1. **`OpCode.java`** — add new enum value
 2. **`ThalesCommandCode.java`** — add `XX("XX","XY","Description", specPage)`
-3. **`ThalesCmdBuilder.java`** — add `buildXX(HsmHeader, Map<String,Object> params)` and `parseXX(byte[])`
-4. **`ThalesVendorAdapter.java`** — add to `SUPPORTED` set, `buildRequest` switch, `expectedResponse` switch
-5. **`XxCommandService.java`** — create in `api/command/impl/`; use correct `OpCode`
-6. Rebuild + redeploy
-7. Test: `POST /thales/command/XX` with correct params
+3. **`ThalesCmdBuilder.java`** — add `buildXX(HsmHeader, Map<String,Object> params)`
+4. **`ThalesCmdParser.java`** — add `parseXX(byte[])` → fields Map
+5. **`ThalesVendorAdapter.java`** — add to `SUPPORTED` set, `buildRequest` switch, `expectedResponse` switch
+6. **`XxCommandService.java`** — create in `api/command/impl/`; use correct `OpCode`
+7. Rebuild + redeploy
+8. Test: `POST /thales/command/XX` with correct params
 
 ---
 
