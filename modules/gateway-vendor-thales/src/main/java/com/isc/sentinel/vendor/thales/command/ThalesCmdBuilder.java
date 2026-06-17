@@ -690,7 +690,8 @@ public final class ThalesCmdBuilder {
 
     public static HsmWireMessage buildBA(HsmHeader header, Map<String, Object> params) {
         String clearPin = (String) params.get("clearPin");
-        int maxPinLen   = Integer.parseInt((String) params.getOrDefault("maxPinLen", "12"));
+        // L = HSM "PIN field length" (CS console, range 5-13). This deployment's HSM = 13.
+        int maxPinLen   = Integer.parseInt((String) params.getOrDefault("maxPinLen", "13"));
         StringBuilder pinField = new StringBuilder(clearPin.toUpperCase());
         while (pinField.length() < maxPinLen) pinField.append('F');
         // Account Number: 12 right-most digits, excluding the check digit

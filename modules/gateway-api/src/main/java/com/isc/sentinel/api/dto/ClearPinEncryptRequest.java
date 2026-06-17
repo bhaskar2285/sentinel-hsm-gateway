@@ -12,8 +12,9 @@ public class ClearPinEncryptRequest {
     @NotBlank private String pan;
 
     /**
-     * Max PIN length L (HSM "PIN Length" security setting, range 5–13; default "12").
-     * The clear PIN is left-justified and 'F'-padded to this length on the wire.
+     * Max PIN length L (HSM "PIN field length" CS setting, range 5–13). This
+     * deployment's HSM uses 13. The clear PIN is left-justified and 'F'-padded
+     * to this length on the wire.
      */
-    private String maxPinLen = "12";
+    private String maxPinLen = "13";
 }

@@ -372,8 +372,9 @@ or pass `pan` and the gateway derives it).
 ```bash
 # BA — Encrypt a Clear PIN  → returns pinUnderLmk
 POST /thales/command/BA
-{ "clearPin": "1234", "accountNo": "111111111111", "maxPinLen": "12" }
-#   maxPinLen must match the HSM "PIN Length" security setting (CS console, 5-13; default 12)
+{ "clearPin": "1234", "accountNo": "111111111111", "maxPinLen": "13" }
+#   maxPinLen must match the HSM "PIN field length" CS setting (range 5-13).
+#   This deployment's HSM = 13 (confirmed: NG decrypt returned PIN + nine 'F's).
 
 # JA — Generate a Random PIN  → returns pinUnderLmk
 POST /thales/command/JA
