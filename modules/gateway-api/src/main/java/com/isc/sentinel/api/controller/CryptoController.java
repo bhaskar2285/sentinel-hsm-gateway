@@ -107,7 +107,7 @@ public class CryptoController {
 
     @PostMapping("/pin/encrypt-clear")
     @PreAuthorize("hasAuthority('OP_PIN_TRANSLATE')")
-    public PinTranslateResponse clearPinEncrypt(@Valid @RequestBody ClearPinEncryptRequest req, Authentication auth) {
+    public PinGenResponse clearPinEncrypt(@Valid @RequestBody ClearPinEncryptRequest req, Authentication auth) {
         return cryptoService.clearPinEncrypt(req, userOf(auth));
     }
 

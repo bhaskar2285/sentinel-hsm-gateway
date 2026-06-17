@@ -8,12 +8,12 @@ public class ClearPinEncryptRequest {
     /** Clear PIN digits (4–12). */
     @NotBlank private String clearPin;
 
-    /** UUID of ZPK under LMK. */
-    @NotBlank private String zpkKeyId;
-
-    /** PIN block format, 2 digits (default "01"). */
-    private String pinBlockFormat = "01";
-
-    /** Full PAN (rightmost 12 excl check digit extracted automatically). */
+    /** Full PAN — rightmost 12 digits (excl. check digit) form the account number. */
     @NotBlank private String pan;
+
+    /**
+     * Max PIN length L (HSM "PIN Length" security setting, range 5–13; default "12").
+     * The clear PIN is left-justified and 'F'-padded to this length on the wire.
+     */
+    private String maxPinLen = "12";
 }

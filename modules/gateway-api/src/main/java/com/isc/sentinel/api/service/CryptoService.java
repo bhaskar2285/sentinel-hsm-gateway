@@ -158,11 +158,12 @@ public class CryptoService {
 
     public PinGenResponse generatePin(PinGenRequest req, String userId) {
         Map<String, Object> p = new HashMap<>();
+        if (req.getPan() != null) p.put("pan", req.getPan());   // JA derives the 12-digit account number
         p.put("pinLen", req.getPinLen());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.PIN_GEN).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return PinGenResponse.builder()
-            .pinLen((String) r.getResult().get("pinLen"))
+            .pinLen(req.getPinLen())                             // JB carries no length; echo requested
             .pinUnderLmk((String) r.getResult().get("pinUnderLmk"))
             .status(r.getStatus()).errCode(r.getErrCode()).errText(r.getErrText()).latencyMs(r.getLatencyMs()).build();
     }
@@ -277,18 +278,16 @@ public class CryptoService {
             .status(r.getStatus()).errCode(r.getErrCode()).errText(r.getErrText()).latencyMs(r.getLatencyMs()).build();
     }
 
-    public PinTranslateResponse clearPinEncrypt(ClearPinEncryptRequest req, String userId) {
-        HsmKey zpk = keyRepo.findByKeyUuid(UUID.fromString(req.getZpkKeyId()))
-            .orElseThrow(() -> new IllegalArgumentException("ZPK not found"));
-        String zpkBlob = blobStr(zpk);
+    public PinGenResponse clearPinEncrypt(ClearPinEncryptRequest req, String userId) {
+        // BA encrypts the clear PIN directly under the LMK — no ZPK, no PIN block.
         Map<String, Object> p = new HashMap<>();
         p.put("clearPin", req.getClearPin());
-        p.put("zpkScheme", zpkBlob.substring(0,1)); p.put("zpkHex", zpkBlob.substring(1));
-        p.put("pinBlockFormat", req.getPinBlockFormat()); p.put("pan", req.getPan());
+        p.put("pan", req.getPan());                 // BA derives the 12-digit account number
+        p.put("maxPinLen", req.getMaxPinLen());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.CLEAR_PIN_ENCRYPT).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
-        return PinTranslateResponse.builder()
-            .translatedPinBlock((String) r.getResult().get("pinBlock"))
+        return PinGenResponse.builder()
+            .pinUnderLmk((String) r.getResult().get("pinUnderLmk"))
             .status(r.getStatus()).errCode(r.getErrCode()).errText(r.getErrText()).latencyMs(r.getLatencyMs()).build();
     }
 
@@ -625,20 +624,17 @@ public class CryptoService {
     }
 
     public PinDecryptResponse decryptPin(PinDecryptRequest req, String userId) {
-        HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
-            .orElseThrow(() -> new IllegalArgumentException("ZPK not found: " + req.getKeyId()));
-        String blob = blobStr(key);
-        String pan12 = req.getPan().length() > 12
-            ? req.getPan().substring(req.getPan().length() - 13, req.getPan().length() - 1) : req.getPan();
+        // NG decrypts an LMK-encrypted PIN — no ZPK, no PIN block. Inverse of BA.
+        String pan = req.getPan();
+        String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
         Map<String, Object> p = new HashMap<>();
-        p.put("keyType", familyCodeForKeyType(key.getKeyType()));
-        p.put("keyScheme", blob.substring(0,1)); p.put("keyHex", blob.substring(1));
-        p.put("pinBlock", req.getPinBlock()); p.put("pinBlockFormat", req.getPinBlockFormat());
-        p.put("pan", pan12);
+        p.put("accountNo", pan12);
+        p.put("pinUnderLmk", req.getPinUnderLmk());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.PIN_DECRYPT).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return PinDecryptResponse.builder()
             .clearPin((String) r.getResult().get("clearPin"))
+            .referenceNumber((String) r.getResult().get("referenceNumber"))
             .status(r.getStatus()).errCode(r.getErrCode()).errText(r.getErrText()).latencyMs(r.getLatencyMs()).build();
     }
 
