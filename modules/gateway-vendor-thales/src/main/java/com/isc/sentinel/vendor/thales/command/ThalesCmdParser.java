@@ -363,12 +363,13 @@ public final class ThalesCmdParser {
 
     // =====================================================================
     // DF — Generate IBM PIN Offset response
-    // Body: Offset(8N)
+    // Body: Offset(12N, 'F'-padded to check length)
     // =====================================================================
 
     private static void parseDFBody(String s, int pos, Map<String, Object> f) {
-        if (s.length() - pos >= 8) f.put("offset", s.substring(pos, pos + 8));
-        else f.put("raw", s.substring(pos));
+        String rest = s.substring(pos).trim();
+        if (rest.isEmpty()) { f.put("raw", s.substring(pos)); return; }
+        f.put("offset", rest.length() >= 12 ? rest.substring(0, 12) : rest);
     }
 
     // =====================================================================

@@ -448,35 +448,30 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // CW — Generate CVV/CVC/CVV2, p.243
-    // Simulator wire: CVKType(3H) + CVKScheme(1A)+CVK(hex) + PAN(12N bare) + Expiry(4N YYMM) + SvcCode(3N)
-    // Single CVK (not split CVKA+CVKB); PAN is rightmost 12 digits excl check digit
-    // Response CX: ErrCode(2) + CVV(3H)
+    // CW — Generate CVV/CVC/CVV2, Core Host Commands
+    // Wire: CVK(scheme+hex) + PAN + ';' + Expiry(4N YYMM) + ServiceCode(3N)
+    // PAN is the full account number terminated by ';'. No key-type prefix.
+    // Response CX: ErrCode(2) + CVV(3N)
     // =====================================================================
 
     public static HsmWireMessage buildCW(HsmHeader header, Map<String, Object> params) {
-        String cvkType    = (String) params.getOrDefault("cvkKeyType", "00A");
         String cvkaScheme = (String) params.getOrDefault("cvkaScheme", "U");
         String cvkaHex    = ((String) params.get("cvkaHex")).toUpperCase();
         String pan        = (String) params.get("pan");
         String expDate    = (String) params.get("expDate");   // YYMM
         String svcCode    = (String) params.getOrDefault("serviceCode", "101");
 
-        // rightmost 12 digits excluding check digit
-        String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-
-        String body = cvkType + cvkaScheme + cvkaHex + pan12 + expDate + svcCode;
+        String body = cvkaScheme + cvkaHex + pan + ";" + expDate + svcCode;
         return new HsmWireMessage(header, "CW", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
-    // CY — Verify CVV/CVC/CVV2, p.297
-    // Simulator wire: same as CW + CVV(3N)
-    // Response CZ: ErrCode(2)
+    // CY — Verify CVV/CVC/CVV2, Core Host Commands
+    // Wire: CVK(scheme+hex) + CVV(3N) + PAN + ';' + Expiry(4N) + ServiceCode(3N)
+    // CVV comes immediately after the key. Response CZ: ErrCode(2) only.
     // =====================================================================
 
     public static HsmWireMessage buildCY(HsmHeader header, Map<String, Object> params) {
-        String cvkType    = (String) params.getOrDefault("cvkKeyType", "00A");
         String cvkaScheme = (String) params.getOrDefault("cvkaScheme", "U");
         String cvkaHex    = ((String) params.get("cvkaHex")).toUpperCase();
         String pan        = (String) params.get("pan");
@@ -484,9 +479,7 @@ public final class ThalesCmdBuilder {
         String svcCode    = (String) params.getOrDefault("serviceCode", "101");
         String cvv        = (String) params.get("cvv");
 
-        String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-
-        String body = cvkType + cvkaScheme + cvkaHex + pan12 + expDate + svcCode + cvv;
+        String body = cvkaScheme + cvkaHex + cvv + pan + ";" + expDate + svcCode;
         return new HsmWireMessage(header, "CY", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -541,42 +534,40 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // DG — Generate VISA PVV, p.217
-    // Body: PVKType(3H) + PVKScheme(1A)+PVK(hex) + PAN(12N) + PVKI(1N) + PINUnderLMK(16H)
+    // DG — Generate VISA PVV, Core Host Commands
+    // Wire: PVK(scheme+hex) + PINUnderLMK + PAN(12N) + PVKI(1N). No key-type prefix.
     // Response DH: ErrCode(2) + PVV(4N)
     // =====================================================================
 
     public static HsmWireMessage buildDG(HsmHeader header, Map<String, Object> params) {
-        String pvkType      = (String) params.getOrDefault("pvkKeyType", "001");
         String pvkScheme    = (String) params.getOrDefault("pvkScheme", "U");
         String pvkHex       = ((String) params.get("pvkHex")).toUpperCase();
+        String pinUnderLmk  = ((String) params.get("pinUnderLmk")).toUpperCase();
         String pan          = (String) params.get("pan");
         String pvki         = (String) params.getOrDefault("pvki", "1");
-        String pinUnderLmk  = ((String) params.get("pinUnderLmk")).toUpperCase();
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = pvkType + pvkScheme + pvkHex + pan12 + pvki + pinUnderLmk;
+        String body = pvkScheme + pvkHex + pinUnderLmk + pan12 + pvki;
         return new HsmWireMessage(header, "DG", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
-    // DE — Generate IBM PIN Offset, p.209
-    // Body: PVKType(3H) + PVKScheme(1A)+PVK(hex) + PINUnderLMK(16H)
-    //     + DecimTable(16H) + PAN(12N) + PINValidData(12N) + CheckLen(1N)
-    // Response DF: ErrCode(2) + Offset(8N)
+    // DE — Generate IBM PIN Offset, Core Host Commands
+    // Wire: PVK(scheme+hex) + PINUnderLMK + CheckLen(2N) + PAN(12N)
+    //     + DecimTable(16H) + PINValidData(12N). No key-type prefix.
+    // Response DF: ErrCode(2) + Offset(12N)
     // =====================================================================
 
     public static HsmWireMessage buildDE(HsmHeader header, Map<String, Object> params) {
-        String pvkType     = (String) params.getOrDefault("pvkKeyType", "001");
         String pvkScheme   = (String) params.getOrDefault("pvkScheme", "U");
         String pvkHex      = ((String) params.get("pvkHex")).toUpperCase();
         String pinUnderLmk = ((String) params.get("pinUnderLmk")).toUpperCase();
+        String checkLen    = String.format("%02d", Integer.parseInt((String) params.getOrDefault("checkLen", "4")));
         String decimTable  = (String) params.getOrDefault("decimTable", "0123456789012345");
         String pan         = (String) params.get("pan");
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
         String pinValidData = (String) params.getOrDefault("pinValidData", pan12);
-        String checkLen    = (String) params.getOrDefault("checkLen", "4");
-        String body = pvkType + pvkScheme + pvkHex + pinUnderLmk
-                    + decimTable.toUpperCase() + pan12 + pinValidData.toUpperCase() + checkLen;
+        String body = pvkScheme + pvkHex + pinUnderLmk
+                    + checkLen + pan12 + decimTable.toUpperCase() + pinValidData.toUpperCase();
         return new HsmWireMessage(header, "DE", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -609,64 +600,64 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // EA — Verify Interchange PIN (IBM 3624), p.259
-    // Same wire format as DA (ZPK used as input key instead of TPK)
+    // EA — Verify Interchange PIN (IBM 3624 offset), Core Host Commands
+    // Wire: ZPK(scheme+hex) + PVK(scheme+hex) + MaxPINLen(2N) + PINBlock(16H)
+    //     + Fmt(2N) + CheckLen(2N) + PAN(12N) + DecimTable(16H) + PINValidData(12N)
+    //     + Offset(12N). No key-type prefixes. (Input PIN block is under a ZPK; the
+    //     gateway carries the ZPK in the tpkScheme/tpkHex params.)
     // Response EB: ErrCode(2)
     // =====================================================================
 
     public static HsmWireMessage buildEA(HsmHeader header, Map<String, Object> params) {
-        String tpkKeyType  = (String) params.getOrDefault("tpkKeyType", "001");
-        String pvkKeyType  = (String) params.getOrDefault("pvkKeyType", "001");
-        String maxPin      = (String) params.getOrDefault("maxPinLen", "12");
+        String zpkScheme   = (String) params.getOrDefault("tpkScheme", "U");
+        String zpkHex      = ((String) params.get("tpkHex")).toUpperCase();
         String pvkScheme   = (String) params.getOrDefault("pvkScheme", "U");
         String pvkHex      = ((String) params.get("pvkHex")).toUpperCase();
-        String tpkScheme   = (String) params.getOrDefault("tpkScheme", "U");
-        String tpkHex      = ((String) params.get("tpkHex")).toUpperCase();
+        String maxPin      = (String) params.getOrDefault("maxPinLen", "12");
         String pinBlock    = ((String) params.get("pinBlock")).toUpperCase();
         String fmt         = (String) params.getOrDefault("pinBlockFormat", "01");
+        String checkLen    = String.format("%02d", Integer.parseInt((String) params.getOrDefault("checkLen", "4")));
         String pan         = (String) params.get("pan");
-        String dectab      = (String) params.getOrDefault("dectab", "0123456789012345");
         String pan12       = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
+        String dectab      = (String) params.getOrDefault("dectab", "0123456789012345");
         String validation  = (String) params.getOrDefault("pinValidationData", pan12);
-        String offset      = (String) params.getOrDefault("pinOffset", "00000000");
-        String body = tpkKeyType + pvkKeyType + maxPin
-                    + pvkScheme + pvkHex + tpkScheme + tpkHex
-                    + pinBlock + fmt + pan12
+        String offset      = (String) params.getOrDefault("pinOffset", "000000000000");
+        String body = zpkScheme + zpkHex + pvkScheme + pvkHex + maxPin
+                    + pinBlock + fmt + checkLen + pan12
                     + dectab.toUpperCase() + validation.toUpperCase() + offset.toUpperCase();
         return new HsmWireMessage(header, "EA", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
-    // EC — Verify Interchange PIN (VISA PVV), p.266
-    // Same wire format as DC (ZPK used as input key instead of TPK)
+    // EC — Verify Interchange PIN (VISA PVV), Core Host Commands
+    // Wire: ZPK(scheme+hex) + PVK(scheme+hex) + PINBlock(16H) + Fmt(2N)
+    //     + PAN(12N) + PVKI(1N) + PVV(4N). No key-type prefixes, no MaxPINLen.
     // Response ED: ErrCode(2)
     // =====================================================================
 
     public static HsmWireMessage buildEC(HsmHeader header, Map<String, Object> params) {
-        String tpkType   = (String) params.getOrDefault("tpkKeyType", "001");
-        String pvkType   = (String) params.getOrDefault("pvkKeyType", "001");
-        String maxPin    = (String) params.getOrDefault("maxPinLen", "12");
+        String zpkScheme = (String) params.getOrDefault("tpkScheme", "U");
+        String zpkHex    = ((String) params.get("tpkHex")).toUpperCase();
         String pvkScheme = (String) params.getOrDefault("pvkScheme", "U");
         String pvkHex    = ((String) params.get("pvkHex")).toUpperCase();
-        String tpkScheme = (String) params.getOrDefault("tpkScheme", "U");
-        String tpkHex    = ((String) params.get("tpkHex")).toUpperCase();
         String pinBlock  = ((String) params.get("pinBlock")).toUpperCase();
         String fmt       = (String) params.getOrDefault("pinBlockFormat", "01");
         String pan       = (String) params.get("pan");
         String pvki      = (String) params.getOrDefault("pvki", "1");
         String pvv       = ((String) params.get("pvv")).toUpperCase();
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = tpkType + pvkType + maxPin
-                    + pvkScheme + pvkHex + tpkScheme + tpkHex
+        String body = zpkScheme + zpkHex + pvkScheme + pvkHex
                     + pinBlock + fmt + pan12 + pvki + pvv;
         return new HsmWireMessage(header, "EC", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
-    // CC — Translate PIN ZPK→ZPK, p.282
-    // Body: SrcZPKScheme(1A)+SrcZPK(hex) + DstZPKScheme(1A)+DstZPK(hex)
-    //     + Fmt(2N) + SrcPINBlock(16H) + DstFlag(2) + SrcFlag(2) + PAN(12N)
+    // CC — Translate PIN ZPK→ZPK, Core Host Commands
+    // Wire: SrcZPK(scheme+hex) + DstZPK(scheme+hex) + MaxPINLen(2N)
+    //     + SrcPINBlock(16H) + SrcFmt(2N) + DstFmt(2N) [+ PAN(12N) for ISO-0]
     // Response CD: ErrCode(2) + PINBlock(16H) + DstFmt(2)
+    // For ISO-0 (format 01) the HSM needs the PAN to recover the PIN, so it is
+    // appended when supplied. Drop it (omit `pan`) for PAN-less formats.
     // =====================================================================
 
     public static HsmWireMessage buildCC(HsmHeader header, Map<String, Object> params) {
@@ -674,13 +665,16 @@ public final class ThalesCmdBuilder {
         String srcHex    = ((String) params.get("srcZpkHex")).toUpperCase();
         String dstScheme = (String) params.getOrDefault("dstZpkScheme", "U");
         String dstHex    = ((String) params.get("dstZpkHex")).toUpperCase();
-        String fmt       = (String) params.getOrDefault("pinBlockFormat", "01");
+        String maxPin    = (String) params.getOrDefault("maxPinLen", "12");
         String pinBlock  = ((String) params.get("pinBlock")).toUpperCase();
-        String dstFlag   = (String) params.getOrDefault("dstFlag", "01");
-        String srcFlag   = (String) params.getOrDefault("srcFlag", "01");
-        String pan       = (String) params.get("pan");
-        String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = srcScheme + srcHex + dstScheme + dstHex + fmt + pinBlock + dstFlag + srcFlag + pan12;
+        String srcFmt    = (String) params.getOrDefault("pinBlockFormat", "01");
+        String dstFmt    = (String) params.getOrDefault("dstPinBlockFormat", srcFmt);
+        String body = srcScheme + srcHex + dstScheme + dstHex + maxPin + pinBlock + srcFmt + dstFmt;
+        if (params.get("pan") != null) {
+            String pan = (String) params.get("pan");
+            String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
+            body = body + pan12;
+        }
         return new HsmWireMessage(header, "CC", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -838,40 +832,36 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // JE — Translate PIN ZPK→LMK, p.215 (same format as JC, ZPK type)
-    // Response JF: ErrCode(2) + PINLen(2N) + PINUnderLMK(16H)
+    // JE — Translate PIN ZPK→LMK, Core Host Commands
+    // Wire: ZPK(scheme+hex) + PINBlock(16H) + Fmt(2N) + PAN(12N).
+    // No key-type prefix, no MaxPINLen. Response JF: ErrCode(2) + PINLen(2N) + PINUnderLMK
     // =====================================================================
 
     public static HsmWireMessage buildJE(HsmHeader header, Map<String, Object> params) {
-        String keyType   = (String) params.getOrDefault("keyType", "001");
         String keyScheme = (String) params.getOrDefault("keyScheme", "U");
         String keyHex    = ((String) params.get("keyHex")).toUpperCase();
-        String maxPin    = (String) params.getOrDefault("maxPinLen", "12");
         String pinBlock  = ((String) params.get("pinBlock")).toUpperCase();
         String fmt       = (String) params.getOrDefault("pinBlockFormat", "01");
         String pan       = (String) params.get("pan");
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = keyType + keyScheme + keyHex + maxPin + pinBlock + fmt + pan12;
+        String body = keyScheme + keyHex + pinBlock + fmt + pan12;
         return new HsmWireMessage(header, "JE", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
-    // JG — Translate PIN LMK→ZPK (encrypt under ZPK), p.220
-    // Body: PINLen(2N) + PINUnderLMK(16H) + ZPKType(3H)
-    //     + ZPKScheme(1A)+ZPK(hex) + Fmt(2N) + PAN(12N)
-    // Response JH: ErrCode(2) + PINBlock(16H)
+    // JG — Translate PIN LMK→ZPK (encrypt under ZPK), Core Host Commands
+    // Wire: ZPK(scheme+hex) + Fmt(2N) + PAN(12N) + PINUnderLMK.
+    // No PIN length and no key-type prefix. Response JH: ErrCode(2) + PINBlock(16H)
     // =====================================================================
 
     public static HsmWireMessage buildJG(HsmHeader header, Map<String, Object> params) {
-        String pinLen      = String.format("%02d", Integer.parseInt((String) params.getOrDefault("pinLen", "4")));
-        String pinUnderLmk = ((String) params.get("pinUnderLmk")).toUpperCase();
-        String zpkType     = (String) params.getOrDefault("zpkKeyType", "001");
         String zpkScheme   = (String) params.getOrDefault("zpkScheme", "U");
         String zpkHex      = ((String) params.get("zpkHex")).toUpperCase();
         String fmt         = (String) params.getOrDefault("pinBlockFormat", "01");
         String pan         = (String) params.get("pan");
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = pinLen + pinUnderLmk + zpkType + zpkScheme + zpkHex + fmt + pan12;
+        String pinUnderLmk = ((String) params.get("pinUnderLmk")).toUpperCase();
+        String body = zpkScheme + zpkHex + fmt + pan12 + pinUnderLmk;
         return new HsmWireMessage(header, "JG", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
