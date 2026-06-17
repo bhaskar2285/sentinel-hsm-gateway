@@ -164,17 +164,17 @@ curl -H "Authorization: Bearer <token>" ...
 
 ### Common concepts
 
-**keyType codes** differ per command:
+**keyType codes** — A0, BU and the MAC commands all use the standard 3-digit
+key type code:
 
 | Command | Type code | Key type |
 |---------|-----------|----------|
-| A0 | `000` | ZMK |
-| A0 | `001` | ZPK |
-| A0 | `002` | TPK |
+| A0 / BU | `000` | ZMK |
+| A0 / BU | `001` | ZPK |
+| A0 / BU | `002` | TPK |
 | A0 | `00A` | DATA |
-| BU | `001` | ZMK |
-| BU | `011` | ZPK |
-| BU | `008` | TMK/TPK |
+| M6 / M8 / VA | `003` | TAK (MAC, terminal) |
+| M6 / M8 / VA | `008` | ZAK (MAC, interchange) |
 
 **Key schemes:**
 
@@ -235,20 +235,22 @@ Response:
 
 ### BU — Generate Key Check Value (KCV)
 
-`keyType` uses BU-specific codes (different from A0).
+`keyType` is the standard 3-digit key type code (same as A0). The gateway encodes
+it via the `FF` + Key-Length-Flag + `;` + 3-digit form and derives the length flag
+from `scheme` (`U`→double, `T`→triple).
 
 ```bash
 curl -X POST http://localhost:8090/thales/command/BU \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"keyType":"001","scheme":"U","keyHex":"E472EA21818D80C6D425CFB9508B29A0"}'
+  -d '{"keyType":"000","scheme":"U","keyHex":"34FD4D7EFFADEE4EACD1562C18C757DC"}'
 ```
 
 Params:
 
 | Param | Required | Description |
 |-------|----------|-------------|
-| `keyType` | yes | BU code: `001`=ZMK, `011`=ZPK, `008`=TPK |
+| `keyType` | yes | 3-digit key type code: `000`=ZMK, `001`=ZPK, `002`=TPK |
 | `scheme` | yes | `U` or `T` |
 | `keyHex` | yes | Key under LMK — hex only, no scheme prefix |
 
@@ -349,11 +351,55 @@ Response:
 ```
 1. Generate ZMK:   A0 keyType=000 → zmkUnderLmk
 2. Generate ZPK:   A0 keyType=001 → zpkUnderLmk
-3. Verify KCVs:    BU keyType=001 (ZMK), BU keyType=011 (ZPK)
+3. Verify KCVs:    BU keyType=000 (ZMK), BU keyType=001 (ZPK)
 4. Export ZPK:     GC zmkHex + zpkHex → zpkUnderZmk  (send to ATM/POS)
 5. Import ZPK:     A6 zmkUnderLmk + zpkUnderZmk → zpkUnderLmk (receive from external)
 6. Re-export ZPK:  A8 zmkUnderLmk + zpkUnderLmk → zpkUnderZmk
 ```
+
+> **BU keyType** is the standard 3-digit key type code (`000`=ZMK, `001`=ZPK, `002`=TPK).
+> The builder sends it via the `FF` + Key-Length-Flag + `;` + 3-digit form, so the
+> length flag is derived from the scheme automatically (`U`→double, `T`→triple).
+
+---
+
+### PIN command bodies (LMK-encrypted PIN path)
+
+These commands operate on a PIN encrypted **under the LMK** — no ZPK and no PIN block.
+Account number = the 12 right-most PAN digits excluding the check digit (pass `accountNo`,
+or pass `pan` and the gateway derives it).
+
+```bash
+# BA — Encrypt a Clear PIN  → returns pinUnderLmk
+POST /thales/command/BA
+{ "clearPin": "1234", "accountNo": "111111111111", "maxPinLen": "12" }
+#   maxPinLen must match the HSM "PIN Length" security setting (CS console, 5-13; default 12)
+
+# JA — Generate a Random PIN  → returns pinUnderLmk
+POST /thales/command/JA
+{ "accountNo": "111111111111", "pinLen": "4" }
+
+# NG — Decrypt an Encrypted PIN  → returns clearPin + referenceNumber
+POST /thales/command/NG
+{ "accountNo": "111111111111", "pinUnderLmk": "<BA/JA output>" }
+```
+
+`DE`, `DG`, `JG` consume the `pinUnderLmk` produced by `BA`/`JA`.
+
+### MAC command bodies (M6 / M8 / VA)
+
+`keyType` is `003` (TAK) or `008` (ZAK). The body carries a **MAC Size** field
+(`macSize`: `0`=8-hex MAC, `1`=16-hex) and a 1-char **algorithm** (`1`=ISO 9797-1,
+`3`=ISO 9797-3/X9.19, `5`=CBC-MAC, `6`=CMAC). `dataHex` is hex; the gateway sends it raw.
+
+```bash
+POST /thales/command/M6
+{ "keyType":"003","keyScheme":"U","keyHex":"<TAK under LMK>",
+  "macSize":"1","algorithm":"3","padding":"1","dataHex":"0102030405060708090A0B0C0D0E0F10" }
+```
+
+> **Note:** the "generate random value" command is `N0`, not `OA` (`OA` = Print PIN Mailer).
+> A `/thales/command/N0` endpoint is not yet wired.
 
 ---
 
