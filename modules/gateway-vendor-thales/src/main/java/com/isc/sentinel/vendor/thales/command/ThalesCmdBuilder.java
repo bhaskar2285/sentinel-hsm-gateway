@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Phase-1 REQUEST codec: build + parse for EI, GI, A8, M2.
+ * Thales REQUEST codec: build + parse for Thales host commands.
  *
  * Refs: payShield 10K Host Programmer's Manual, Core Host Commands V1.0
  *   EI p.167  RSA Key Pair Generate
@@ -526,15 +526,18 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // JA — Generate Random PIN, p.207
-    // Body: PINLen(2N)
-    // Response JB: ErrCode(2) + PINLen(2N) + PINUnderLMK(16H)
+    // JA — Generate a Random PIN, Core Host Commands p.207
+    // Body: AccountNumber(12 N, rightmost 12 excl check) + PINLength(2 N, 04-12, optional)
+    // Response JB: ErrCode(2) + PIN encrypted under LMK (L digits, or 'J'+32H for AES LMK)
     // =====================================================================
 
     public static HsmWireMessage buildJA(HsmHeader header, Map<String, Object> params) {
+        String acct   = (String) params.getOrDefault("accountNo", params.getOrDefault("pan", "000000000000"));
+        String acct12 = acct.length() > 12 ? acct.substring(acct.length() - 13, acct.length() - 1) : acct;
         int pinLenVal = Integer.parseInt((String) params.getOrDefault("pinLen", "4"));
         String pinLen = String.format("%02d", pinLenVal);
-        return new HsmWireMessage(header, "JA", pinLen.getBytes(StandardCharsets.US_ASCII), null);
+        String body   = acct12 + pinLen;
+        return new HsmWireMessage(header, "JA", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
@@ -682,22 +685,24 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // BA — Encrypt Clear PIN under ZPK, p.290
-    // Body: PINLen(2N) + ClearPIN(variable, PINLen digits) + ZPKType(3H)
-    //     + ZPKScheme(1A)+ZPK(hex) + Fmt(2N) + PAN(12N)
-    // Response BB: ErrCode(2) + PINBlock(16H)
+    // BA — Encrypt a Clear PIN (under LMK), Core Host Commands p.240
+    // Body: PIN(L H, clear PIN left-justified padded with 'F' to max PIN length L)
+    //     + AccountNumber(12 N, rightmost 12 digits excl check)
+    // Response BB: ErrCode(2) + PIN encrypted under LMK (L digits, or 'J'+32H for AES LMK)
+    // NOTE: this command does NOT use a ZPK and does NOT form a PIN block — the clear
+    // PIN is encrypted directly under the LMK. L is the HSM "PIN Length" security
+    // setting (CS console, range 5-13); pass `maxPinLen` to match (default 12).
     // =====================================================================
 
     public static HsmWireMessage buildBA(HsmHeader header, Map<String, Object> params) {
-        String clearPin  = (String) params.get("clearPin");
-        String pinLen    = String.format("%02d", clearPin.length());
-        String zpkType   = (String) params.getOrDefault("zpkKeyType", "001");
-        String zpkScheme = (String) params.getOrDefault("zpkScheme", "U");
-        String zpkHex    = ((String) params.get("zpkHex")).toUpperCase();
-        String fmt       = (String) params.getOrDefault("pinBlockFormat", "01");
-        String pan       = (String) params.get("pan");
-        String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = pinLen + clearPin + zpkType + zpkScheme + zpkHex + fmt + pan12;
+        String clearPin = (String) params.get("clearPin");
+        int maxPinLen   = Integer.parseInt((String) params.getOrDefault("maxPinLen", "12"));
+        StringBuilder pinField = new StringBuilder(clearPin.toUpperCase());
+        while (pinField.length() < maxPinLen) pinField.append('F');
+        // Account Number: 12 right-most digits, excluding the check digit
+        String acct   = (String) params.getOrDefault("accountNo", params.get("pan"));
+        String acct12 = acct.length() > 12 ? acct.substring(acct.length() - 13, acct.length() - 1) : acct;
+        String body = pinField + acct12;
         return new HsmWireMessage(header, "BA", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -722,19 +727,21 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // M6 — Generate MAC, p.390
-    // Body: Mode(1N) + InputFmt(1N) + Alg(2N) + Padding(1N) + KeyType(3H)
-    //     + KeyScheme(1A)+Key(hex) + [IV(16H) if mode=1 or 2] + MsgLen(4H) + Message(binary)
-    // Response M7: ErrCode(2) + MAC(16H)
-    // MsgLen is 4 hex chars (big-endian byte count); Message is raw binary on wire.
+    // M6 — Generate a MAC, Core Host Commands p.359
+    // Body: Mode(1N) + InputFmt(1N) + MacSize(1N) + MacAlg(1N) + Padding(1N) + KeyType(3H)
+    //     + KeyScheme(1A)+Key(hex) + [IV(16H) if mode=2 or 3] + MsgLen(4H) + Message(binary)
+    // Response M7: ErrCode(2) + MAC(8 or 16 H)
+    // MacSize: 0=8 hex, 1=16 hex. MacAlg: 1=ISO9797-1, 3=ISO9797-3(X9.19), 5=CBC-MAC, 6=CMAC.
+    // KeyType for Variant LMK: 003=TAK, 008=ZAK. MsgLen is 4 hex (byte count); Message raw binary.
     // =====================================================================
 
     public static HsmWireMessage buildM6(HsmHeader header, Map<String, Object> params) {
         String mode      = (String) params.getOrDefault("mode", "0");
         String inputFmt  = (String) params.getOrDefault("inputFormat", "0");
-        String alg       = (String) params.getOrDefault("algorithm", "01");
+        String macSize   = (String) params.getOrDefault("macSize", "1");
+        String alg       = (String) params.getOrDefault("algorithm", "3");
         String padding   = (String) params.getOrDefault("padding", "1");
-        String keyType   = (String) params.getOrDefault("keyType", "00A");
+        String keyType   = (String) params.getOrDefault("keyType", "003");
         String keyScheme = (String) params.getOrDefault("keyScheme", "U");
         String keyHex    = ((String) params.get("keyHex")).toUpperCase();
         String dataHex   = ((String) params.get("dataHex")).toUpperCase();
@@ -743,9 +750,9 @@ public final class ThalesCmdBuilder {
         byte[] dataBytes = java.util.HexFormat.of().parseHex(dataHex);
         String msgLen    = String.format("%04X", dataBytes.length);
 
-        String header2 = mode + inputFmt + alg + padding + keyType + keyScheme + keyHex;
+        String header2 = mode + inputFmt + macSize + alg + padding + keyType + keyScheme + keyHex;
         byte[] prefixBytes;
-        if ("1".equals(mode) || "2".equals(mode)) {
+        if ("2".equals(mode) || "3".equals(mode)) {
             prefixBytes = (header2 + iv + msgLen).getBytes(StandardCharsets.US_ASCII);
         } else {
             prefixBytes = (header2 + msgLen).getBytes(StandardCharsets.US_ASCII);
@@ -758,17 +765,18 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // M8 — Verify MAC, p.396
-    // Same as M6 + MAC(16H) at end
-    // Response M9: ErrCode(2)
+    // M8 — Verify a MAC, Core Host Commands p.363
+    // Same field layout as M6 (incl. MacSize + MacAlg) + MAC at end.
+    // Response M9: ErrCode(2) — 00=verified, 01=verify fail.
     // =====================================================================
 
     public static HsmWireMessage buildM8(HsmHeader header, Map<String, Object> params) {
         String mode      = (String) params.getOrDefault("mode", "0");
         String inputFmt  = (String) params.getOrDefault("inputFormat", "0");
-        String alg       = (String) params.getOrDefault("algorithm", "01");
+        String macSize   = (String) params.getOrDefault("macSize", "1");
+        String alg       = (String) params.getOrDefault("algorithm", "3");
         String padding   = (String) params.getOrDefault("padding", "1");
-        String keyType   = (String) params.getOrDefault("keyType", "00A");
+        String keyType   = (String) params.getOrDefault("keyType", "003");
         String keyScheme = (String) params.getOrDefault("keyScheme", "U");
         String keyHex    = ((String) params.get("keyHex")).toUpperCase();
         String dataHex   = ((String) params.get("dataHex")).toUpperCase();
@@ -778,9 +786,9 @@ public final class ThalesCmdBuilder {
         byte[] dataBytes = java.util.HexFormat.of().parseHex(dataHex);
         String msgLen    = String.format("%04X", dataBytes.length);
 
-        String header2 = mode + inputFmt + alg + padding + keyType + keyScheme + keyHex;
+        String header2 = mode + inputFmt + macSize + alg + padding + keyType + keyScheme + keyHex;
         byte[] prefixBytes;
-        if ("1".equals(mode) || "2".equals(mode)) {
+        if ("2".equals(mode) || "3".equals(mode)) {
             prefixBytes = (header2 + iv + msgLen).getBytes(StandardCharsets.US_ASCII);
         } else {
             prefixBytes = (header2 + msgLen).getBytes(StandardCharsets.US_ASCII);
@@ -935,10 +943,14 @@ public final class ThalesCmdBuilder {
     // =====================================================================
 
     public static HsmWireMessage buildBU(HsmHeader header, Map<String, Object> params) {
-        String keyType  = (String) params.getOrDefault("keyType", "001");
+        String keyType  = (String) params.getOrDefault("keyType", "001");   // 3-digit Key Type Code
         String scheme   = (String) params.getOrDefault("scheme", "U");
         String keyHex   = ((String) params.get("keyHex")).toUpperCase();
-        String body = keyType + scheme + keyHex;
+        // Key Length Flag (1N): 0=single, 1=double (U), 2=triple (T), 3=HMAC
+        String lenFlag  = switch (scheme) { case "U" -> "1"; case "T" -> "2"; default -> "0"; };
+        // 2-digit Key Type Code 'FF' => the 3-digit code is supplied after the ';' delimiter.
+        // Order per manual: KeyTypeCode2(FF) + KeyLengthFlag + Key(scheme+hex) + ';' + KeyTypeCode3
+        String body = "FF" + lenFlag + scheme + keyHex + ";" + keyType;
         return new HsmWireMessage(header, "BU", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -1099,20 +1111,18 @@ public final class ThalesCmdBuilder {
     }
 
     // =====================================================================
-    // NG — Decrypt Encrypted PIN, p.0
-    // Body: PINBlock(16H) + KeyType(3H) + KeyScheme(1A)+Key(hex) + Fmt(2N) + PAN(12N)
-    // Response NH: ErrCode(2) + ClearPIN
+    // NG — Decrypt an Encrypted PIN, Core Host Commands p.241
+    // Body: AccountNumber(12 N, rightmost 12 excl check)
+    //     + PIN encrypted under LMK (L digits, or 'J'+32H for AES LMK — the BA/JA output)
+    // Response NH: ErrCode(2) + clear PIN (L H, 'F'-padded) + ReferenceNumber(12 N)
+    // NOTE: inverse of BA — no ZPK/TPK and no PIN block involved.
     // =====================================================================
 
     public static HsmWireMessage buildNG(HsmHeader header, Map<String, Object> params) {
-        String pinBlock  = ((String) params.get("pinBlock")).toUpperCase();
-        String keyType   = (String) params.getOrDefault("keyType", "001");
-        String keyScheme = (String) params.getOrDefault("keyScheme", "U");
-        String keyHex    = ((String) params.get("keyHex")).toUpperCase();
-        String fmt       = (String) params.getOrDefault("pinBlockFormat", "01");
-        String pan       = (String) params.get("pan");
-        String pan12     = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body      = pinBlock + keyType + keyScheme + keyHex + fmt + pan12;
+        String acct        = (String) params.getOrDefault("accountNo", params.get("pan"));
+        String acct12      = acct.length() > 12 ? acct.substring(acct.length() - 13, acct.length() - 1) : acct;
+        String pinUnderLmk = ((String) params.get("pinUnderLmk")).toUpperCase();
+        String body        = acct12 + pinUnderLmk;
         return new HsmWireMessage(header, "NG", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -1155,9 +1165,10 @@ public final class ThalesCmdBuilder {
     public static HsmWireMessage buildVA(HsmHeader header, Map<String, Object> params) {
         String mode      = (String) params.getOrDefault("mode", "0");
         String inputFmt  = (String) params.getOrDefault("inputFormat", "0");
-        String alg       = (String) params.getOrDefault("algorithm", "01");
+        String macSize   = (String) params.getOrDefault("macSize", "1");
+        String alg       = (String) params.getOrDefault("algorithm", "3");
         String padding   = (String) params.getOrDefault("padding", "1");
-        String keyType   = (String) params.getOrDefault("keyType", "00A");
+        String keyType   = (String) params.getOrDefault("keyType", "003");
         String keyScheme = (String) params.getOrDefault("keyScheme", "U");
         String keyHex    = ((String) params.get("keyHex")).toUpperCase();
         String dataHex   = ((String) params.get("dataHex")).toUpperCase();
@@ -1167,9 +1178,9 @@ public final class ThalesCmdBuilder {
         byte[] dataBytes = java.util.HexFormat.of().parseHex(dataHex);
         String msgLen    = String.format("%04X", dataBytes.length);
 
-        String hdr2 = mode + inputFmt + alg + padding + keyType + keyScheme + keyHex;
+        String hdr2 = mode + inputFmt + macSize + alg + padding + keyType + keyScheme + keyHex;
         byte[] prefixBytes;
-        if ("1".equals(mode) || "2".equals(mode)) {
+        if ("2".equals(mode) || "3".equals(mode)) {
             prefixBytes = (hdr2 + iv + msgLen).getBytes(StandardCharsets.US_ASCII);
         } else {
             prefixBytes = (hdr2 + msgLen).getBytes(StandardCharsets.US_ASCII);

@@ -8,9 +8,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Phase-1 RESPONSE codec: parse + build for EJ, GJ, A9, M3.
+ * Thales RESPONSE codec: parse + build for Thales host-command responses.
  *
- * Mirrors {@link Phase1Builder} (request side). Each command pair (EI/EJ, GI/GJ, A8/A9, M2/M3)
+ * Mirrors {@link ThalesCmdBuilder} (request side). Each command pair (EI/EJ, GI/GJ, A8/A9, M2/M3)
  * has a request build/parse and a response parse/build, giving full symmetric wire codec.
  * Useful for audit replay, unit tests, wire-trace decoding and mock fixtures.
  *
@@ -340,14 +340,15 @@ public final class ThalesCmdParser {
     }
 
     // =====================================================================
-    // JB — Generate Random PIN response
-    // Body: PINLen(2N) + PINUnderLMK(16H)
+    // JB — Generate a Random PIN response
+    // Body: PIN encrypted under LMK — L digits (Variant/Key Block LMK) or 'J'+32H (AES LMK).
+    // No length prefix; the encrypted PIN is the remainder of the response body.
     // =====================================================================
 
     private static void parseJBBody(String s, int pos, Map<String, Object> f) {
-        if (s.length() - pos < 18) { f.put("raw", s.substring(pos)); return; }
-        f.put("pinLen", s.substring(pos, pos + 2)); pos += 2;
-        f.put("pinUnderLmk", s.substring(pos, pos + 16));
+        String pin = s.substring(pos).trim();
+        if (!pin.isEmpty()) f.put("pinUnderLmk", pin);
+        else f.put("raw", s.substring(pos));
     }
 
     // =====================================================================
@@ -383,12 +384,14 @@ public final class ThalesCmdParser {
     }
 
     // =====================================================================
-    // BB — Encrypt Clear PIN under ZPK response
-    // Body: PINBlock(16H)
+    // BB — Encrypt a Clear PIN response
+    // Body: PIN encrypted under LMK — L digits (Variant/Key Block LMK) or 'J'+32H (AES LMK).
+    // No length prefix; the encrypted PIN is the remainder of the response body.
     // =====================================================================
 
     private static void parseBBBody(String s, int pos, Map<String, Object> f) {
-        if (s.length() - pos >= 16) f.put("pinBlock", s.substring(pos, pos + 16));
+        String pin = s.substring(pos).trim();
+        if (!pin.isEmpty()) f.put("pinUnderLmk", pin);
         else f.put("raw", s.substring(pos));
     }
 
@@ -547,17 +550,21 @@ public final class ThalesCmdParser {
     // =====================================================================
 
     // =====================================================================
-    // NH — Decrypt Encrypted PIN response
-    // Body: PINLen(2N) + ClearPIN(variable decimal digits)
+    // NH — Decrypt an Encrypted PIN response
+    // Body: clear PIN (L H, left-justified 'F'-padded) + ReferenceNumber(12 N).
+    // No length prefix; reference number is the trailing 12 digits.
     // =====================================================================
 
     private static void parseNHBody(String s, int pos, Map<String, Object> f) {
-        if (s.length() - pos < 3) { f.put("raw", s.substring(pos)); return; }
-        int pinLen;
-        try { pinLen = Integer.parseInt(s.substring(pos, pos + 2)); } catch (NumberFormatException e) { f.put("raw", s.substring(pos)); return; }
-        pos += 2;
-        if (s.length() - pos >= pinLen) f.put("clearPin", s.substring(pos, pos + pinLen));
-        else f.put("raw", s.substring(pos));
+        String rest = s.substring(pos).trim();
+        if (rest.length() >= 12) {
+            String ref = rest.substring(rest.length() - 12);
+            String pin = rest.substring(0, rest.length() - 12).replaceAll("[Ff]+$", "");
+            f.put("clearPin", pin);
+            f.put("referenceNumber", ref);
+        } else {
+            f.put("raw", rest);
+        }
     }
 
     // =====================================================================
