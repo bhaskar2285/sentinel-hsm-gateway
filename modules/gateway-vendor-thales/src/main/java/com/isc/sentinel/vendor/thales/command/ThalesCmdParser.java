@@ -142,7 +142,7 @@ public final class ThalesCmdParser {
         int remaining = s.length() - pos - 6;
         int expected;
         try {
-            expected = KeyScheme.hexLenForScheme(scheme.charAt(0));
+            expected = KeyScheme.keyTokenLen(s, pos - 1);
         } catch (IllegalArgumentException ex) {
             expected = remaining;
         }
@@ -171,7 +171,7 @@ public final class ThalesCmdParser {
         if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
         String scheme = s.substring(pos, pos + 1); pos += 1;
         f.put("scheme", scheme);
-        int hex = KeyScheme.hexLenForScheme(scheme.charAt(0));
+        int hex = KeyScheme.keyTokenLen(s, pos - 1);
         f.put("keyUnderLmk", s.substring(pos, pos + hex)); pos += hex;
 
         int remaining = s.length() - pos;
@@ -208,7 +208,7 @@ public final class ThalesCmdParser {
         if (s.length() - pos < 1 + 6) { f.put("raw", s.substring(pos)); return; }
         String scheme = s.substring(pos, pos + 1); pos += 1;
         f.put("scheme", scheme);
-        int hex = KeyScheme.hexLenForScheme(scheme.charAt(0));
+        int hex = KeyScheme.keyTokenLen(s, pos - 1);
         f.put("keyUnderLmk", s.substring(pos, pos + hex)); pos += hex;
         f.put("kcv", s.substring(pos, pos + 6));
     }
@@ -235,7 +235,7 @@ public final class ThalesCmdParser {
         int remaining = s.length() - pos - 6;
         int expected;
         try {
-            expected = KeyScheme.hexLenForScheme(scheme.charAt(0));
+            expected = KeyScheme.keyTokenLen(s, pos - 1);
         } catch (IllegalArgumentException ex) {
             expected = remaining;
         }
@@ -277,9 +277,10 @@ public final class ThalesCmdParser {
     // =====================================================================
 
     private static void parseM1Body(String s, int pos, Map<String, Object> f) {
-        int len = Integer.parseInt(s.substring(pos, pos + 4)); pos += 4;
-        f.put("ciphertext", s.substring(pos, Math.min(pos + len * 2, s.length())));
-        f.put("messageLength", len);
+        // MsgLen is 4 HEX digits = number of HEX CHARS that follow (Output Format '1').
+        int len = Integer.parseInt(s.substring(pos, pos + 4), 16); pos += 4;
+        f.put("ciphertext", s.substring(pos, Math.min(pos + len, s.length())));
+        f.put("messageLength", len / 2);
     }
 
     public static byte[] buildM1(String errCode, Map<String, Object> fields) {
@@ -296,9 +297,10 @@ public final class ThalesCmdParser {
     // =====================================================================
 
     private static void parseM3Body(String s, int pos, Map<String, Object> f) {
-        int len = Integer.parseInt(s.substring(pos, pos + 4)); pos += 4;
-        f.put("plaintext", s.substring(pos, Math.min(pos + len * 2, s.length())));
-        f.put("messageLength", len);
+        // MsgLen is 4 HEX digits = number of HEX CHARS that follow (Output Format '1').
+        int len = Integer.parseInt(s.substring(pos, pos + 4), 16); pos += 4;
+        f.put("plaintext", s.substring(pos, Math.min(pos + len, s.length())));
+        f.put("messageLength", len / 2);
     }
 
     public static byte[] buildM3(String errCode, Map<String, Object> fields) {
@@ -436,7 +438,7 @@ public final class ThalesCmdParser {
         int remaining = s.length() - pos - 6;
         int expected;
         try {
-            expected = KeyScheme.hexLenForScheme(scheme.charAt(0));
+            expected = KeyScheme.keyTokenLen(s, pos - 1);
         } catch (IllegalArgumentException ex) {
             expected = remaining;
         }
@@ -489,7 +491,7 @@ public final class ThalesCmdParser {
         String scheme = s.substring(pos, pos + 1); pos += 1;
         f.put("scheme", scheme);
         int hex;
-        try { hex = KeyScheme.hexLenForScheme(scheme.charAt(0)); }
+        try { hex = KeyScheme.keyTokenLen(s, pos - 1); }
         catch (IllegalArgumentException ex) { hex = s.length() - pos; }
         f.put("component", s.substring(pos, Math.min(pos + hex, s.length())));
     }
@@ -505,7 +507,7 @@ public final class ThalesCmdParser {
         f.put("scheme", scheme);
         int remaining = s.length() - pos - 6;
         int expected;
-        try { expected = KeyScheme.hexLenForScheme(scheme.charAt(0)); }
+        try { expected = KeyScheme.keyTokenLen(s, pos - 1); }
         catch (IllegalArgumentException ex) { expected = remaining; }
         if (expected > remaining) expected = remaining;
         f.put("keyUnderLmk", s.substring(pos, pos + expected)); pos += expected;

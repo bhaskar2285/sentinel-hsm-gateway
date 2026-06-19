@@ -39,4 +39,34 @@ public enum KeyScheme {
     public static int hexLenForScheme(char code) {
         return of(code).hexLen;
     }
+
+    /**
+     * True for the variable-length LMK key-block scheme tags.
+     *
+     * On a Key Block LMK the encrypted key on the wire is NOT a fixed-length hex
+     * string — it is a self-describing block: {@code <scheme><version><LLLL><header...><data><mac>}
+     * where {@code LLLL} (4 decimal digits) is the total block length that follows the
+     * scheme tag. Real payShield traffic uses tag 'S' (3DES key block) and 'R'
+     * (the imported TR-31 'R'/AES block). Confirmed against live TTB wire captures:
+     *   S0007271TN00S0001...  -> LLLL=0072 -> 72 chars after 'S'
+     *   RB0080P0TB00E0000...  -> LLLL=0080 -> 80 chars after 'R'
+     */
+    public static boolean isKeyBlockScheme(char code) {
+        return code == 'S' || code == 'R';
+    }
+
+    /**
+     * Number of characters the key token occupies AFTER the scheme byte, read from
+     * the wire at {@code schemePos} (the index of the scheme char in {@code wire}).
+     *
+     * For fixed schemes (Z/U/T/X/Y) this is the static hex length. For key-block
+     * schemes (S/R) it is the embedded 4-digit decimal length at {@code wire[schemePos+2..schemePos+6]}.
+     */
+    public static int keyTokenLen(String wire, int schemePos) {
+        char code = wire.charAt(schemePos);
+        if (isKeyBlockScheme(code)) {
+            return Integer.parseInt(wire.substring(schemePos + 2, schemePos + 6));
+        }
+        return hexLenForScheme(code);
+    }
 }

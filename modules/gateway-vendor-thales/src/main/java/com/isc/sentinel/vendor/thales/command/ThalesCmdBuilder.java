@@ -123,12 +123,12 @@ public final class ThalesCmdBuilder {
         p.put("keyType", s.substring(pos, pos + 3)); pos += 3;
 
         String zmkScheme = s.substring(pos, pos + 1); pos += 1;
-        int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+        int zmkHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("zmkScheme",   zmkScheme);
         p.put("zmkUnderLmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
 
         String keyScheme = s.substring(pos, pos + 1); pos += 1;
-        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        int keyHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("keyScheme",   keyScheme);
         p.put("keyUnderZmk", s.substring(pos, pos + keyHex)); pos += keyHex;
 
@@ -143,9 +143,13 @@ public final class ThalesCmdBuilder {
     // =====================================================================
 
     public static HsmWireMessage buildM0(HsmHeader header, Map<String, Object> params) {
-        String mode    = (String) params.getOrDefault("mode", "01");
-        String inFmt   = (String) params.getOrDefault("inputFormat",  "0");
-        String outFmt  = (String) params.getOrDefault("outputFormat", "0");
+        // payShield Core Host Commands p.382. Message Length is 4 HEX digits = BYTE count
+        // (NOT decimal); with Input Format '0' the Message is sent as RAW BINARY. Output
+        // Format '1' makes the M1 response hex (string-parseable). Confirmed live (err 00)
+        // and against the TTB trace (mode '00', inFmt '0', outFmt '1', msgLen X'0040 = 64 bytes).
+        String mode    = (String) params.getOrDefault("mode", "00");        // 00=ECB, 01=CBC
+        String inFmt   = (String) params.getOrDefault("inputFormat",  "0"); // 0=binary
+        String outFmt  = (String) params.getOrDefault("outputFormat", "1"); // 1=hex response
         String keyType = (String) params.getOrDefault("keyType", "00A");
 
         String keyScheme;
@@ -161,16 +165,19 @@ public final class ThalesCmdBuilder {
 
         String iv    = ((String) params.getOrDefault("iv", "")).toUpperCase();
         String plain = ((String) params.get("plaintextHex")).toUpperCase();
-        int plainBytes = plain.length() / 2;
+        byte[] dataBytes = java.util.HexFormat.of().parseHex(plain);
+        String msgLen = String.format("%04X", dataBytes.length);
 
-        StringBuilder b = new StringBuilder();
-        b.append(mode).append(inFmt).append(outFmt).append(keyType)
-         .append(keyScheme).append(keyUnder)
-         .append(String.format("%04d", plainBytes));
-        if ("01".equals(mode) && !iv.isEmpty()) b.append(iv);
-        b.append(plain);
+        StringBuilder head = new StringBuilder();
+        head.append(mode).append(inFmt).append(outFmt).append(keyType)
+            .append(keyScheme).append(keyUnder).append(msgLen);
+        if ("01".equals(mode) && !iv.isEmpty()) head.append(iv);
 
-        return new HsmWireMessage(header, "M0", b.toString().getBytes(StandardCharsets.US_ASCII), null);
+        byte[] prefix = head.toString().getBytes(StandardCharsets.US_ASCII);
+        byte[] body   = new byte[prefix.length + dataBytes.length];
+        System.arraycopy(prefix,    0, body, 0,             prefix.length);
+        System.arraycopy(dataBytes, 0, body, prefix.length, dataBytes.length);
+        return new HsmWireMessage(header, "M0", body, null);
     }
 
     public static Map<String, Object> parseM0(byte[] body) {
@@ -187,7 +194,7 @@ public final class ThalesCmdBuilder {
         p.put("keyType",      s.substring(pos, pos + 3)); pos += 3;
 
         String keyScheme = s.substring(pos, pos + 1); pos += 1;
-        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        int keyHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("keyScheme",   keyScheme);
         p.put("keyUnderLmk", s.substring(pos, pos + keyHex)); pos += keyHex;
 
@@ -231,12 +238,12 @@ public final class ThalesCmdBuilder {
         p.put("keyKeyType", s.substring(pos, pos + 3)); pos += 3;
 
         String zmkScheme = s.substring(pos, pos + 1); pos += 1;
-        int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+        int zmkHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("zmkScheme", zmkScheme);
         p.put("zmkUnderLmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
 
         String keyScheme = s.substring(pos, pos + 1); pos += 1;
-        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        int keyHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("keyScheme", keyScheme);
         p.put("keyUnderLmk", s.substring(pos, pos + keyHex)); pos += keyHex;
 
@@ -255,9 +262,11 @@ public final class ThalesCmdBuilder {
     // =====================================================================
 
     public static HsmWireMessage buildM2(HsmHeader header, Map<String, Object> params) {
-        String mode    = (String) params.getOrDefault("mode", "01");
+        // Mirror of M0 (p.385). MsgLen = 4 HEX digits = BYTE count; with Input Format '0'
+        // the ciphertext Message is RAW BINARY; Output Format '1' => hex M3 response.
+        String mode    = (String) params.getOrDefault("mode", "00");
         String inFmt   = (String) params.getOrDefault("inputFormat",  "0");
-        String outFmt  = (String) params.getOrDefault("outputFormat", "0");
+        String outFmt  = (String) params.getOrDefault("outputFormat", "1");
         String keyType = (String) params.getOrDefault("keyType", "00A");
 
         String keyScheme;
@@ -273,16 +282,19 @@ public final class ThalesCmdBuilder {
 
         String iv  = ((String) params.getOrDefault("iv", "")).toUpperCase();
         String msg = ((String) params.get("messageHex")).toUpperCase();
-        int msgBytes = msg.length() / 2;
+        byte[] dataBytes = java.util.HexFormat.of().parseHex(msg);
+        String msgLen = String.format("%04X", dataBytes.length);
 
-        StringBuilder b = new StringBuilder();
-        b.append(mode).append(inFmt).append(outFmt).append(keyType)
-         .append(keyScheme).append(keyUnder)
-         .append(String.format("%04d", msgBytes));
-        if ("01".equals(mode) && !iv.isEmpty()) b.append(iv);
-        b.append(msg);
+        StringBuilder head = new StringBuilder();
+        head.append(mode).append(inFmt).append(outFmt).append(keyType)
+            .append(keyScheme).append(keyUnder).append(msgLen);
+        if ("01".equals(mode) && !iv.isEmpty()) head.append(iv);
 
-        return new HsmWireMessage(header, "M2", b.toString().getBytes(StandardCharsets.US_ASCII), null);
+        byte[] prefix = head.toString().getBytes(StandardCharsets.US_ASCII);
+        byte[] body   = new byte[prefix.length + dataBytes.length];
+        System.arraycopy(prefix,    0, body, 0,             prefix.length);
+        System.arraycopy(dataBytes, 0, body, prefix.length, dataBytes.length);
+        return new HsmWireMessage(header, "M2", body, null);
     }
 
     // =====================================================================
@@ -323,7 +335,7 @@ public final class ThalesCmdBuilder {
 
         if ("1".equals(mode) && pos < s.length()) {
             String zmkScheme = s.substring(pos, pos + 1); pos += 1;
-            int zmkHex = KeyScheme.hexLenForScheme(zmkScheme.charAt(0));
+            int zmkHex = KeyScheme.keyTokenLen(s, pos - 1);
             p.put("zmkScheme", zmkScheme);
             p.put("zmkUnderLmk", s.substring(pos, pos + zmkHex)); pos += zmkHex;
             p.put("outScheme", s.substring(pos, pos + 1));
@@ -372,12 +384,12 @@ public final class ThalesCmdBuilder {
         p.put("keyKeyType",  s.substring(pos, pos + 3)); pos += 3;
 
         String kbpkScheme = s.substring(pos, pos + 1); pos += 1;
-        int kbpkHex = KeyScheme.hexLenForScheme(kbpkScheme.charAt(0));
+        int kbpkHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("kbpkScheme",   kbpkScheme);
         p.put("kbpkUnderLmk", s.substring(pos, pos + kbpkHex)); pos += kbpkHex;
 
         String keyScheme = s.substring(pos, pos + 1); pos += 1;
-        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        int keyHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("keyScheme",   keyScheme);
         p.put("keyUnderLmk", s.substring(pos, pos + keyHex)); pos += keyHex;
 
@@ -423,26 +435,29 @@ public final class ThalesCmdBuilder {
     // =====================================================================
 
     public static HsmWireMessage buildDA(HsmHeader header, Map<String, Object> params) {
-        String tpkKeyType  = (String) params.getOrDefault("tpkKeyType", "008");
-        String pvkKeyType  = (String) params.getOrDefault("pvkKeyType", "001");
-        String maxPin      = (String) params.getOrDefault("maxPinLen", "12");
-        String pvkScheme   = (String) params.getOrDefault("pvkScheme", "U");
-        String pvkHex      = ((String) params.get("pvkHex")).toUpperCase();
+        // payShield Core Host Commands p.256. Field order (Variant & 3DES Key Block LMK):
+        //   TPK + PVK + MaxPINLen(2) + PINBlock(16) + Fmt(2) + CheckLen(2) + PAN(12)
+        //   + DecimTable(16) + PINValidationData(12) + Offset(12)
+        // NOTE: NO 3-digit key-type prefixes (the type is carried in the key block header /
+        // is implicit for the variant pair), and TPK comes before PVK. Confirmed against the
+        // live TTB capture (RSM5 DA …).
         String tpkScheme   = (String) params.getOrDefault("tpkScheme", "U");
         String tpkHex      = ((String) params.get("tpkHex")).toUpperCase();
+        String pvkScheme   = (String) params.getOrDefault("pvkScheme", "U");
+        String pvkHex      = ((String) params.get("pvkHex")).toUpperCase();
+        String maxPin      = (String) params.getOrDefault("maxPinLen", "12");
         String pinBlock    = ((String) params.get("pinBlock")).toUpperCase();
         String fmt         = (String) params.getOrDefault("pinBlockFormat", "01");
+        String checkLen    = String.format("%02d", Integer.parseInt((String) params.getOrDefault("checkLen", "4")));
         String pan         = (String) params.get("pan");
-        String dectab      = (String) params.getOrDefault("dectab", "0123456789012345");
         // pan12: rightmost 12 digits excluding check digit
         String pan12       = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
+        String dectab      = (String) params.getOrDefault("dectab", "0123456789012345");
         String validation  = (String) params.getOrDefault("pinValidationData", pan12);
-        String offset      = (String) params.getOrDefault("pinOffset", "00000000");
+        String offset      = (String) params.getOrDefault("pinOffset", "000000000000");
 
-        String body = tpkKeyType + pvkKeyType + maxPin
-                    + pvkScheme + pvkHex
-                    + tpkScheme + tpkHex
-                    + pinBlock + fmt + pan12
+        String body = tpkScheme + tpkHex + pvkScheme + pvkHex
+                    + maxPin + pinBlock + fmt + checkLen + pan12
                     + dectab.toUpperCase() + validation.toUpperCase() + offset.toUpperCase();
         return new HsmWireMessage(header, "DA", body.getBytes(StandardCharsets.US_ASCII), null);
     }
@@ -1199,7 +1214,7 @@ public final class ThalesCmdBuilder {
         p.put("keyType",      s.substring(pos, pos + 3)); pos += 3;
 
         String keyScheme = s.substring(pos, pos + 1); pos += 1;
-        int keyHex = KeyScheme.hexLenForScheme(keyScheme.charAt(0));
+        int keyHex = KeyScheme.keyTokenLen(s, pos - 1);
         p.put("keyScheme",    keyScheme);
         p.put("keyUnderLmk",  s.substring(pos, pos + keyHex)); pos += keyHex;
 
