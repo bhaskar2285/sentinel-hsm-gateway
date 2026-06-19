@@ -48,16 +48,42 @@ Two parallel REST paths — same HSM adapter underneath:
 
 ## Thales Command Reference
 
-### ✅ Built + HSM Tested (confirmed err=00 on live HSM)
+### ✅ Built + HSM Tested (confirmed err=00 on live payShield)
+
+Verified end-to-end against the real payShield (RSM5 header) — request built by
+`ThalesCmdBuilder`, replayed live, response parsed.
 
 | Cmd | Endpoint | Description |
 |-----|----------|-------------|
 | NC | `POST /thales/command/NC` | Network connectivity check |
-| A0 | `POST /thales/command/A0` | Generate symmetric key under LMK |
+| NO | `POST /thales/command/NO` | HSM status (modes 00/01) |
+| A0 | `POST /thales/command/A0` | Generate symmetric key (Variant **and** Key Block LMK) |
 | A6 | `POST /thales/command/A6` | Import key encrypted under ZMK → LMK |
 | A8 | `POST /thales/command/A8` | Export key from LMK → ZMK encryption |
 | BU | `POST /thales/command/BU` | Generate key check value (KCV) |
 | GC | `POST /thales/command/GC` | Export ZPK from LMK to ZMK encryption |
+| M0 / M2 | `POST /thales/command/{M0,M2}` | Encrypt / decrypt data block (round-trip verified) |
+| CA / CC | `POST /thales/command/{CA,CC}` | Translate PIN TPK→ZPK / ZPK→ZPK |
+| JE / JG | `POST /thales/command/{JE,JG}` | Translate PIN ZPK↔LMK |
+| DA / EA | `POST /thales/command/{DA,EA}` | Verify terminal / interchange PIN (IBM offset) |
+| DG / EC | `POST /thales/command/{DG,EC}` | Generate VISA PVV / verify interchange PVV |
+| CW / CY | `POST /thales/command/{CW,CY}` | Generate / verify CVV |
+| BA / JA | `POST /thales/command/{BA,JA}` | Encrypt clear / generate random PIN under LMK |
+
+> **DA/EA** return err **02** ("PVK not single length" warning) on success — the PIN is
+> still verified; treat 00 and 02 as pass for double-length PVKs.
+
+---
+
+### Key Block LMK support
+
+The live deployment runs a **Key Block LMK**. Key tokens use scheme tag **`S`** (3DES
+key block) / **`R`** (imported TR-31 block) and are **self-describing**: the 4 decimal
+digits after the scheme tag give the total token length (e.g. `S0007271TN00S0001…`
+→ `0072` → 72 chars). `KeyScheme.keyTokenLen()` reads this; fixed schemes (`U`/`T`/`X`/
+`Y`/`Z`) keep their static lengths. On a Key Block LMK the 3-digit key-type field is
+implicit in the block header — commands that take a key block set key-type `FFF`
+(M0/M2/M6) and omit the separate type prefix (DA/EA/CA).
 
 ---
 
@@ -79,9 +105,7 @@ Two parallel REST paths — same HSM adapter underneath:
 
 | Cmd | Endpoint | Description |
 |-----|----------|-------------|
-| M0 | `POST /thales/command/M0` | Encrypt data block |
-| M2 | `POST /thales/command/M2` | Decrypt data block |
-| M6 | `POST /thales/command/M6` | Generate MAC |
+| M6 | `POST /thales/command/M6` | Generate MAC (needs `FFF` + key block on this LMK) |
 | M8 | `POST /thales/command/M8` | Verify MAC |
 | VA | `POST /thales/command/VA` | Verify MAC (full-format variant) |
 | LQ | `POST /thales/command/LQ` | Generate HMAC (SPA2 AAV) |
@@ -92,29 +116,17 @@ Two parallel REST paths — same HSM adapter underneath:
 
 | Cmd | Endpoint | Description |
 |-----|----------|-------------|
-| JA | `POST /thales/command/JA` | Generate random PIN under LMK |
-| BA | `POST /thales/command/BA` | Encrypt clear PIN under ZPK |
-| NG | `POST /thales/command/NG` | Decrypt PIN block to clear |
+| NG | `POST /thales/command/NG` | Decrypt PIN block to clear (err 17 here — CS-disabled) |
 | JC | `POST /thales/command/JC` | Translate PIN TPK → LMK |
-| JE | `POST /thales/command/JE` | Translate PIN ZPK → LMK |
-| JG | `POST /thales/command/JG` | Translate PIN LMK → ZPK |
-| CC | `POST /thales/command/CC` | Translate PIN ZPK → ZPK |
 | JS | `POST /thales/command/JS` | Translate PIN ZPK → ZPK (variant 2) |
-| CA | `POST /thales/command/CA` | Translate PIN TPK → ZPK/BDK |
-| DA | `POST /thales/command/DA` | Verify terminal PIN (IBM 3624 offset) |
 | DC | `POST /thales/command/DC` | Verify terminal PIN (VISA PVV) |
-| EA | `POST /thales/command/EA` | Verify interchange PIN (IBM 3624) |
-| EC | `POST /thales/command/EC` | Verify interchange PIN (VISA PVV) |
-| DE | `POST /thales/command/DE` | Generate IBM PIN offset |
-| DG | `POST /thales/command/DG` | Generate VISA PVV |
+| DE | `POST /thales/command/DE` | Generate IBM PIN offset (format matches trace) |
 | EE | `POST /thales/command/EE` | Derive PIN from IBM offset |
 
 #### CVV / EMV
 
 | Cmd | Endpoint | Description |
 |-----|----------|-------------|
-| CW | `POST /thales/command/CW` | Generate CVV/CVC/CVV2 |
-| CY | `POST /thales/command/CY` | Verify CVV/CVC/CVV2 |
 | KQ | `POST /thales/command/KQ` | Verify ARQC / Generate ARPC (EMV chip) |
 | KW | `POST /thales/command/KW` | Verify ARQC / Generate ARPC (EMV 4.x) |
 | PM | `POST /thales/command/PM` | Verify dynamic CVV/CVC (dCVV CVN17) |
@@ -180,9 +192,15 @@ key type code:
 
 | Code | Type | Key length |
 |------|------|-----------|
+| `Z` | Single-length DES | 8 bytes / 16 hex chars |
 | `U` | Double-length DES | 16 bytes / 32 hex chars |
 | `T` | Triple-length DES | 24 bytes / 48 hex chars |
-| `X` | AES-128 | 16 bytes / 32 hex chars |
+| `X` / `Y` | Double / triple variant | 32 / 48 hex chars |
+| `S` / `R` | **Key block** (3DES / TR-31) | **variable** — length embedded in the token |
+
+For a key block, pass the whole token (scheme char + header + data) as the key
+param; `ThalesCmdBuilder` forwards it verbatim and `keyTokenLen()` recovers the
+length on parse. Do **not** treat `S` as a fixed-length AES key.
 
 **Important:** params are passed directly to `ThalesCmdBuilder` — use HSM-native codes, not names like `"ZMK"`.
 
@@ -402,16 +420,49 @@ POST /thales/command/M6
 > **Note:** the "generate random value" command is `N0`, not `OA` (`OA` = Print PIN Mailer).
 > A `/thales/command/N0` endpoint is not yet wired.
 
+### Data encrypt / decrypt (M0 / M2)
+
+Message Length is **4 hex digits = byte count** and the data block is sent as **raw
+binary** (Input Format `0`); Output Format `1` makes the M1/M3 response hex. Pass the
+plaintext/ciphertext as hex — the gateway decodes it to binary on the wire.
+
+```bash
+POST /thales/command/M0          # encrypt → ciphertextHex
+{ "keyType":"00A","keyScheme":"U","keyUnderLmk":"<DATA key under LMK>",
+  "mode":"00","plaintextHex":"00112233445566778899AABBCCDDEEFF" }
+
+POST /thales/command/M2          # decrypt → plaintext
+{ "keyType":"00A","keyScheme":"U","keyUnderLmk":"<DATA key under LMK>",
+  "mode":"00","messageHex":"<ciphertext hex>" }
+```
+For a key-block DATA key set `keyType":"FFF"`, `keyScheme":"S"` and pass the block.
+
+### Verify PIN (DA / EA — IBM offset)
+
+No 3-digit key-type prefix; order is TPK/ZPK then PVK. The decimalization table is the
+**encrypted** 16-hex form, PIN validation data uses the `P`+16H form, Offset is 12 hex.
+
+```bash
+POST /thales/command/DA
+{ "tpkScheme":"S","tpkHex":"<TPK block>", "pvkScheme":"S","pvkHex":"<PVK block>",
+  "pinBlock":"<enc PIN block>","pinBlockFormat":"01","checkLen":"6",
+  "pan":"<16-digit PAN>","dectab":"<enc dectab 16H>",
+  "pinValidationData":"P30000009FFFFFFFF","pinOffset":"085936FFFFFF" }
+# err 00 or 02 = PIN verified (02 = PVK double-length warning).
+```
+
 ---
 
 ## Wire Protocol
 
 ```
-Request frame:  [2-byte BE length][4-byte ASCII "0000"][2-byte cmd][body]
-Response frame: [2-byte BE length][4-byte ASCII "0000"][2-byte resp-cmd][2-byte err-code][body]
+Request frame:  [2-byte BE length][4-byte ASCII header][2-byte cmd][body]
+Response frame: [2-byte BE length][4-byte ASCII header][2-byte resp-cmd][2-byte err-code][body]
 ```
 
-Error code `00` = success. All other codes defined in `ThalesErrorCode.java`.
+The HSM echoes the 4-byte header. Set it via `sentinel.thales.header`; the live
+deployment uses **`RSM5`** (`0000` also works). Error code `00` = success
+(`02` is a non-fatal warning on some PIN commands). All codes in `ThalesErrorCode.java`.
 
 Key classes:
 
