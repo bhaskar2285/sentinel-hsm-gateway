@@ -66,7 +66,13 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
         OpCode.RANDOM_DATA,
         OpCode.PIN_TRANSLATE_ZPK2,
         OpCode.MAC_VERIFY_ALT,
-        OpCode.NET_HEALTH
+        OpCode.NET_HEALTH,
+        OpCode.FORMATTING_DATA_LOAD,
+        OpCode.FORMATTING_DATA_ADD,
+        OpCode.PIN_MAILER_PRINT,
+        OpCode.PIN_MIGRATE_LMK,
+        OpCode.DUKPT_PIN_TRANSLATE,
+        OpCode.DUKPT_PIN_VERIFY
     );
 
     private final ThalesTransport transport;
@@ -190,6 +196,12 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case PIN_TRANSLATE_ZPK2          -> ThalesCmdBuilder.buildJS(header, cmd.getParams());
             case MAC_VERIFY_ALT              -> ThalesCmdBuilder.buildVA(header, cmd.getParams());
             case NET_HEALTH                  -> ThalesCmdBuilder.buildNC(header, cmd.getParams());
+            case FORMATTING_DATA_LOAD        -> ThalesCmdBuilder.buildPA(header, cmd.getParams());
+            case FORMATTING_DATA_ADD         -> ThalesCmdBuilder.buildPC(header, cmd.getParams());
+            case PIN_MAILER_PRINT            -> ThalesCmdBuilder.buildPE(header, cmd.getParams());
+            case PIN_MIGRATE_LMK             -> ThalesCmdBuilder.buildBG(header, cmd.getParams());
+            case DUKPT_PIN_TRANSLATE         -> ThalesCmdBuilder.buildG0(header, cmd.getParams());
+            case DUKPT_PIN_VERIFY            -> ThalesCmdBuilder.buildGO(header, cmd.getParams());
             default -> throw new UnsupportedOperationException("Thales op not supported: " + cmd.getOp());
         };
     }
@@ -243,6 +255,12 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             case PIN_TRANSLATE_ZPK2          -> ThalesCommandCode.JS.response();
             case MAC_VERIFY_ALT              -> ThalesCommandCode.VA.response();
             case NET_HEALTH                  -> ThalesCommandCode.NC.response();
+            case FORMATTING_DATA_LOAD        -> ThalesCommandCode.PA.response();
+            case FORMATTING_DATA_ADD         -> ThalesCommandCode.PC.response();
+            case PIN_MAILER_PRINT            -> ThalesCommandCode.PE.response();
+            case PIN_MIGRATE_LMK             -> ThalesCommandCode.BG.response();
+            case DUKPT_PIN_TRANSLATE         -> ThalesCommandCode.G0.response();
+            case DUKPT_PIN_VERIFY            -> ThalesCommandCode.GO.response();
             default -> throw new UnsupportedOperationException("no Thales mapping: " + cmd.getOp());
         };
     }

@@ -17,7 +17,10 @@ public class DecryptRequest {
     /** Hex, 16 chars for DES, 32 for AES (CBC only). */
     private String iv;
 
-    /** "0"=hex input, "1"=binary */
+    /** Input ciphertext format: "0" => message carried as binary on the wire (the
+     *  gateway always binarises the supplied ciphertextHex). */
     private String inputFormat = "0";
-    private String outputFormat = "0";
+    /** Output plaintext format: "1" => HSM returns the plaintext as hex so the API
+     *  field plaintextHex is hex (UI-displayable); "0" would return raw binary. */
+    private String outputFormat = "1";
 }

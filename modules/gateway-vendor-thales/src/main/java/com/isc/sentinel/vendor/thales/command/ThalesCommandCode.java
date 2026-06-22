@@ -67,7 +67,15 @@ public enum ThalesCommandCode {
     OA("OA", "OB", "Generate Random Data", 0),
     JS("JS", "JT", "Translate PIN ZPK -> ZPK (variant 2)", 0),
     VA("VA", "VB", "Verify MAC (full-format variant)", 0),
-    NC("NC", "ND", "Network Connectivity Check", 337);
+    NC("NC", "ND", "Network Connectivity Check", 337),
+
+    /* Legacy / specialised — formatting, mailer print, LMK migration, DUKPT */
+    PA("PA", "PB", "Load Formatting Data to HSM", 235),
+    PC("PC", "PD", "Load Additional Formatting Data to HSM", 236),
+    PE("PE", "PF", "Print PIN / Solicitation Data", 224),
+    BG("BG", "BH", "Translate PIN from Old LMK to New LMK", 69),
+    G0("G0", "G1", "Translate PIN DUKPT -> ZPK / DUKPT", 339),
+    GO("GO", "GP", "Verify PIN (DUKPT BDK + PVK)", 344);
 
     private final String request;
     private final String response;

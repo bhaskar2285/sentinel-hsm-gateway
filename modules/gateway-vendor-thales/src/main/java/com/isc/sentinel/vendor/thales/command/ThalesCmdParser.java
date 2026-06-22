@@ -96,6 +96,14 @@ public final class ThalesCmdParser {
             case "OB" -> parseOBBody(s, pos, fields);
             case "JT" -> parseCDBody(s, pos, fields); // same structure as CD
             case "VB" -> {}                           // no body — verify result in errCode
+            // Legacy / specialised
+            case "PB" -> {}                           // PA ack — no body beyond error code
+            case "PD" -> {}                           // PC ack — no body beyond error code
+            case "GP" -> {}                           // GO PIN verify — result in error code
+            case "PF" -> parsePFBody(s, pos, fields); // PE print — check data
+            case "PZ" -> {}                           // PE after-print status — no body
+            case "BH" -> parseJDBody(s, pos, fields); // BG — PIN under current LMK (variable LN)
+            case "G1" -> parseG1Body(s, pos, fields); // G0 — translated PIN block + dst format
             default   -> fields.put("raw", s.substring(pos));
         }
         return new Parsed(respCode, errCode, fields);
@@ -453,9 +461,13 @@ public final class ThalesCmdParser {
     // =====================================================================
 
     private static void parseJDBody(String s, int pos, Map<String, Object> f) {
-        if (s.length() - pos < 18) { f.put("raw", s.substring(pos)); return; }
-        f.put("pinLen", s.substring(pos, pos + 2)); pos += 2;
-        f.put("pinUnderLmk", s.substring(pos, pos + 16));
+        // JD/JF: ErrCode already stripped. Body = PIN encrypted under LMK (LN), a
+        // variable-length proprietary-format token whose length L is set by the HSM
+        // "PIN Length" security setting (e.g. 13 chars on the TTB key-block LMK:
+        // JF00 8699636332605). For an AES Key Block LMK it is 'J' + 32 H. There is no
+        // separate length prefix, so capture the whole remaining token.
+        if (s.length() - pos < 1) { f.put("raw", ""); return; }
+        f.put("pinUnderLmk", s.substring(pos));
     }
 
     // =====================================================================
@@ -596,5 +608,20 @@ public final class ThalesCmdParser {
         } else {
             f.put("raw", s.substring(pos));
         }
+    }
+
+    // PF — PE (Print PIN) "before printing" response: PIN check value + reference
+    // number check value (L + 12 N). Length L depends on the configured PIN length,
+    // so capture the whole remaining token as a single check-data field.
+    private static void parsePFBody(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 1) { f.put("raw", ""); return; }
+        f.put("checkData", s.substring(pos));
+    }
+
+    // G1 — G0 (DUKPT PIN translate) response: DestPINBlock(16H) + DestFmt(2N).
+    private static void parseG1Body(String s, int pos, Map<String, Object> f) {
+        if (s.length() - pos < 16) { f.put("raw", s.substring(pos)); return; }
+        f.put("pinBlock", s.substring(pos, pos + 16)); pos += 16;
+        if (s.length() - pos >= 2) f.put("pinBlockFormat", s.substring(pos, pos + 2));
     }
 }

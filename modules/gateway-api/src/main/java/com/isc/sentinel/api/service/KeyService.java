@@ -226,8 +226,9 @@ public class KeyService {
                 case "ZPK": case "BDK":        return "001";
                 case "KBPK":                   return "002";
                 case "TMK": case "TPK":        return "008";
-                case "DATA": case "PVK":
-                case "CVK":
+                case "PVK":                    return "002"; // LMK pair 14-15 — used by DA/DC/DE/DG/EA/EC
+                case "CVK":                    return "402"; // CVK pair — used by CW/CY (CVV/CVC)
+                case "DATA":
                 case "IMK-AC": case "IMK-SMI":
                 case "IMK-SMC":                return "00A";
                 default: break;
@@ -241,9 +242,10 @@ public class KeyService {
         return switch (code) {
             case "000" -> "ZMK";
             case "001" -> "ZPK";
-            case "002" -> "KBPK";
+            case "002" -> "PVK";
             case "008" -> "TMK";
             case "00A" -> "DATA";
+            case "402" -> "CVK";
             default    -> "GENERIC";
         };
     }

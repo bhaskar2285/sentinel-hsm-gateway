@@ -66,5 +66,13 @@ public enum OpCode {
     RANDOM_DATA,                 // Thales OA/OB — Generate Random Data
     PIN_TRANSLATE_ZPK2,          // Thales JS/JT — Translate PIN ZPK→ZPK (variant 2)
     MAC_VERIFY_ALT,              // Thales VA/VB — Verify MAC (full-format variant)
-    NET_HEALTH                   // Thales NC/ND — Network Connectivity Check
+    NET_HEALTH,                  // Thales NC/ND — Network Connectivity Check
+
+    // Legacy / specialised
+    FORMATTING_DATA_LOAD,        // Thales PA/PB — Load Formatting Data to HSM
+    FORMATTING_DATA_ADD,         // Thales PC/PD — Load Additional Formatting Data
+    PIN_MAILER_PRINT,            // Thales PE/PF — Print PIN / Solicitation Data
+    PIN_MIGRATE_LMK,             // Thales BG/BH — Translate PIN from Old LMK to New LMK
+    DUKPT_PIN_TRANSLATE,         // Thales G0/G1 — Translate PIN DUKPT → ZPK / DUKPT
+    DUKPT_PIN_VERIFY             // Thales GO/GP — Verify PIN (DUKPT BDK + PVK)
 }
