@@ -44,6 +44,13 @@ Two parallel REST paths — same HSM adapter underneath:
 **Use `/thales/command/{CMD}` for:** HSM testing, direct integration, per-command control.  
 **Use `/api/v1/crypto/**` for:** payment application integration, abstracted operations.
 
+`/api/v1/crypto/decrypt` returns `plaintextHex` as hex (`outputFormat` defaults to `1`).
+Encrypt/decrypt default to mode `01` (CBC) — supply an `iv`, or set `mode:"00"` for ECB.
+
+HSM nodes are configured in the DB via `/api/v1/hsms` (pool via `/api/v1/pools`); the
+dispatcher routes only to nodes with `health=UP` (probed every 15s). The gateway runs
+host networking, so a node `host:127.0.0.1 port:1500` reaches a host-local payShield.
+
 ---
 
 ## Thales Command Reference
@@ -117,11 +124,16 @@ implicit in the block header — commands that take a key block set key-type `FF
 | Cmd | Endpoint | Description |
 |-----|----------|-------------|
 | NG | `POST /thales/command/NG` | Decrypt PIN block to clear (err 17 here — CS-disabled) |
-| JC | `POST /thales/command/JC` | Translate PIN TPK → LMK |
-| JS | `POST /thales/command/JS` | Translate PIN ZPK → ZPK (variant 2) |
-| DC | `POST /thales/command/DC` | Verify terminal PIN (VISA PVV) |
-| DE | `POST /thales/command/DE` | Generate IBM PIN offset (format matches trace) |
-| EE | `POST /thales/command/EE` | Derive PIN from IBM offset |
+| JC | `POST /thales/command/JC` | Translate PIN TPK → LMK — **wire fixed**, mirrors live-verified JE |
+| DC | `POST /thales/command/DC` | Verify terminal PIN (VISA PVV) — **wire fixed**, mirrors live-verified EC |
+| DE | `POST /thales/command/DE` | Generate IBM PIN offset (verified vs real TTB key-block trace, DF02) |
+| EE | `POST /thales/command/EE` | Derive PIN from IBM offset (layout matches manual) |
+
+> `JC`/`DC` previously emitted a legacy key-type / MaxPIN prefix (same bug class as
+> the earlier DA/EA fix) which the real HSM rejects with err 15. They now follow the
+> Core Host Commands layout (DC p.266, JC p.283). `JD`/`JF`/`BH` responses parse the
+> variable-length (13-char on this LMK) LMK-encrypted PIN, not a `pinLen+16H` field.
+> Note: `JS` is **not** a standard payShield command — ZPK→ZPK PIN translate is `CC`.
 
 #### CVV / EMV
 
@@ -141,17 +153,26 @@ implicit in the block header — commands that take a key block set key-type `FF
 
 ---
 
+### 🆕 Specialised commands (built; wire locked to spec)
+
+Implemented from the Core Host Commands manual. Earlier docs mislabelled these as
+"legacy PIN" ops — their real functions are below. `G0`/`GO` are recognised live on
+the HSM; the rest build correct wire but need hardware/LMK setup not present here.
+
+| Cmd | Real function | Live-testable here |
+|-----|---------------|--------------------|
+| PA  | Load Formatting Data to HSM (PIN-mailer print) | no — needs USB printer |
+| PC  | Load Additional Formatting Data (follows PA) | no — needs printer |
+| PE  | Print PIN / solicitation data | no — needs printer |
+| BG  | Translate PIN old-LMK → new-LMK (LMK migration) | no — needs Key-Change LMKs |
+| G0  | Translate PIN DUKPT → ZPK / DUKPT | yes — recognised (G1 responder) |
+| GO  | Verify PIN (DUKPT BDK + PVK) | yes — recognised (GP responder) |
+
+`NH` is a response code only (reply to `NG`), not a request command.
+
 ### ❌ Not Built (pending)
 
-| Cmd | Description | Notes |
-|-----|-------------|-------|
-| PA  | Generate PIN (legacy) | PA/PB pair |
-| PC  | Verify PIN (legacy) | PC/PD pair |
-| PE  | Translate PIN (legacy) | PE/PF pair |
-| GO  | Generate key (AES/alt) | GO/GP pair |
-| G0  | Generate key (variant) | G-zero variant |
-| BG  | Generate key check value (alt) | BG/BH pair; variant of BU |
-| NH  | *(response code only)* | NH is the response to NG — not a request command |
+_None of the catalogued commands remain stubbed._
 
 ---
 
@@ -183,10 +204,17 @@ key type code:
 |---------|-----------|----------|
 | A0 / BU | `000` | ZMK |
 | A0 / BU | `001` | ZPK |
-| A0 / BU | `002` | TPK |
+| A0 / BU | `002` | TPK / PVK (LMK pair 14-15) |
 | A0 | `00A` | DATA |
+| A0 | `402` | CVK (CVV/CVC) |
 | M6 / M8 / VA | `003` | TAK (MAC, terminal) |
 | M6 / M8 / VA | `008` | ZAK (MAC, interchange) |
+
+> The semantic key API (`/keys/symmetric`) maps friendly names to these codes.
+> `PVK → 002` and `CVK → 402` (previously both `00A`): a key created as `00A` and
+> then used by `CW`/`CY` (CVV) or `DA`/`DC`/`DE`/`DG`/`EA` (PIN) fails with parity
+> error 10, because it is encrypted under the wrong LMK pair. Create `CVK`/`PVK`
+> keys with the correct family code so those ops work.
 
 **Key schemes:**
 
