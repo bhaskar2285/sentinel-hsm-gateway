@@ -53,6 +53,39 @@ host networking, so a node `host:127.0.0.1 port:1500` reaches a host-local paySh
 
 ---
 
+## Switching App Integration
+
+A switching / payment application talks to the HSM through the gateway only:
+
+```
+switching app  ->  Sentinel Gateway API  ->  Thales payShield HSM
+```
+
+Ready-to-use integration clients live in [`integration/`](integration/):
+
+| Client | For |
+|--------|-----|
+| [`integration/sentinel_client.py`](integration/sentinel_client.py) | Python switches — `SentinelClient` wraps login, the raw `/thales/command/{CMD}` passthrough, and every semantic endpoint. Raises on any non-`00` HSM error. |
+| [`integration/sentinel_client.sh`](integration/sentinel_client.sh) | Non-Python switches — `curl`/`jq` helper with `login` / `get` / `api` / `raw` verbs and self-healing token cache. |
+
+```python
+from sentinel_client import SentinelClient
+sc = SentinelClient("http://gateway:8090", "admin", "sentinel123"); sc.login()
+sc.cvv_generate(cvkKeyId=kid, pan="4111111111111111", expiry="2512", serviceCode="201")
+sc.raw("M6", {"keyType":"008","keyScheme":"U","key":zak,"message":"48656C6C6F"})
+```
+
+```bash
+./integration/sentinel_client.sh api /api/v1/crypto/hsm/echo '{"data":"DEADBEEF"}'
+./integration/sentinel_client.sh raw M6 '{"keyType":"008","keyScheme":"U","key":"...","message":"..."}'
+```
+
+**Per-command usage** — operation, semantic endpoint, raw endpoint, key params,
+and the console page for every command — is in
+[`docs/COMMAND_GUIDE.md`](docs/COMMAND_GUIDE.md).
+
+---
+
 ## Thales Command Reference
 
 ### ✅ Built + HSM Tested (confirmed err=00 on live payShield)
