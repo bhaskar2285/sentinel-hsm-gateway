@@ -14,8 +14,9 @@ public class MacRequest {
     /** Input format: 0=binary, 1=ASCII, 2=EBCDIC (default "0"). */
     private String inputFormat = "0";
 
-    /** Algorithm: "01"=DES X9.9 (8-byte key), "03"=3DES X9.19 (16-byte key, default). */
-    private String algorithm = "03";
+    /** MAC Algorithm (1N): "1"=ISO 9797 alg 1 (X9.9, DES), "3"=ISO 9797 alg 3 (X9.19, 3DES, default),
+     *  "5"=CBC-MAC (AES), "6"=CMAC (AES). Single digit — the wire field is 1N. */
+    private String algorithm = "3";
 
     /** Padding method: 0=none, 1=ANSI X9.19, 2=ISO 16609 (default "1"). */
     private String padding = "1";

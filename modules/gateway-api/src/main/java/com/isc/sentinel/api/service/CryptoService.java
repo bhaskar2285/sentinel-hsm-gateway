@@ -690,7 +690,9 @@ public class CryptoService {
             case "ZMK"  -> "000";
             case "ZPK", "BDK" -> "001";
             case "KBPK" -> "002";
+            case "TAK", "003" -> "003";   // MAC key (M6/M8) — encrypted under LMK pair 16-17
             case "TMK", "TPK" -> "008";
+            case "ZAK", "008" -> "008";   // MAC key (M6/M8) — encrypted under LMK pair 26-27
             case "DATA", "PVK", "CVK", "IMK-AC", "IMK-SMI", "IMK-SMC" -> "00A";
             default     -> "00A";
         };
