@@ -28,7 +28,19 @@ services:
       DB_PASS: sentinel
       SERVER_PORT: 8090
       OAUTH_ISSUER: ${OAUTH_ISSUER:-}
+      # dev-mode disables auth entirely and is localhost-only. Secured target is
+      # SPRING_PROFILES_ACTIVE=prod (session-token auth filter). Default stays dev
+      # until the secured profile is deployed + verified.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # TLS termination (primary transport security). Enable for any non-local
+      # deployment. Generate the keystore with scripts/gen-tls-keystore.sh.
+      TLS_ENABLED: ${TLS_ENABLED:-false}
+      TLS_KEYSTORE: ${TLS_KEYSTORE:-/app/certs/sentinel-gateway.p12}
+      TLS_KEYSTORE_PASSWORD: ${TLS_KEYSTORE_PASSWORD:-}
+      TLS_KEY_ALIAS: ${TLS_KEY_ALIAS:-sentinel-gateway}
+    volumes:
+      - ./certs:/app/certs:ro      # TLS keystore (read-only)
+      - sentinel-jwe:/app/jwe       # persisted JWE key (survives restarts)
     network_mode: host
     logging:
       driver: "json-file"
@@ -41,3 +53,4 @@ services:
 
 volumes:
   sentinel-pg-data:
+  sentinel-jwe:

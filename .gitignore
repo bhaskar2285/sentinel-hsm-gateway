@@ -12,3 +12,17 @@ logs/
 frontend/node_modules
 frontend/dist
 frontend/tsconfig.tsbuildinfo
+
+# TLS keystores / private keys / JWE keys — never commit
+certs/
+*.p12
+*.jks
+*.pem
+*.key
+jwe-key*.der
+
+# Probe/audit scratch — contain live PANs/PINs, never commit
+probe_all.py
+Sentinel-HSM-Probes*.ps1
+WIRE_FINDINGS_TTB.md
+TTB KEyblock audits.txt

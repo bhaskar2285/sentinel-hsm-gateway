@@ -28,6 +28,12 @@
             <groupId>com.isc.sentinel</groupId>
             <artifactId>gateway-persistence</artifactId>
         </dependency>
+        <!-- Servlet API for the session-token auth filter (provided by the container at runtime) -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
