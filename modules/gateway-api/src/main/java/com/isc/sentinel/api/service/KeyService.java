@@ -103,6 +103,23 @@ public class KeyService {
         params.put("keyType",   familyCodeForKeyType(req.getKeyType(), req.getKeyType()));
         params.put("keyScheme", req.getKeyScheme());
 
+        // Scheme 'S' = generate the key natively under the Key Block LMK. The HSM needs
+        // the TR-31 usage descriptor for the key's purpose, plus the LMK slot selector.
+        if ("S".equals(req.getKeyScheme())) {
+            String descriptor = keyBlockDescriptor(req.getKeyType());
+            if (descriptor == null) {
+                return SymKeyGenResponse.builder()
+                    .status("ERROR").errCode("VL")
+                    .errText("key type '" + req.getKeyType()
+                        + "' has no Key Block (scheme S) descriptor — supported: KBPK, ZMK/KEK, ZPK, CVK, ZEK, TAK, PVK")
+                    .build();
+            }
+            params.put("keyBlockDescriptor", descriptor);
+            params.put("keyBlockLmkId",
+                (req.getKeyBlockLmkId() == null || req.getKeyBlockLmkId().isBlank())
+                    ? "01" : req.getKeyBlockLmkId());
+        }
+
         if ("1".equals(req.getMode())) {
             if (req.getZmkKeyId() == null) {
                 return SymKeyGenResponse.builder()
@@ -219,6 +236,12 @@ public class KeyService {
         return iv + "0".repeat(target - iv.length());
     }
 
+    /** Key-block (scheme 'S'/'R') keys present wire key type 'FFF'; variant keys use their family code. */
+    private static String wireKeyType(String scheme, String variantCode) {
+        return (scheme != null && !scheme.isEmpty() && (scheme.charAt(0) == 'S' || scheme.charAt(0) == 'R'))
+            ? "FFF" : variantCode;
+    }
+
     private static String familyCodeForKeyType(String storedName, String requestHint) {
         if (storedName != null) {
             switch (storedName) {
@@ -235,6 +258,26 @@ public class KeyService {
             }
         }
         return requestHint != null ? requestHint : "00A";
+    }
+
+    /**
+     * TR-31 / X9.143 usage descriptor that follows the Key Block LMK selector on an
+     * A0 scheme-'S' generation: {@code <usage:2><algo:1><lenFlag:1><modeOfUse:1>00<export:1>00}.
+     * Probe-verified against the live payShield (each returns OK on {@code A00FFFS%01#...}).
+     * Returns null for key types with no defined key-block usage.
+     */
+    private static String keyBlockDescriptor(String keyTypeName) {
+        if (keyTypeName == null) return null;
+        return switch (keyTypeName.toUpperCase()) {
+            case "KBPK"        -> "K0T3B00E00"; // key block protection key (triple-length)
+            case "ZMK", "KEK"  -> "52T2N00N00"; // zone / key-encryption key (matches TTB)
+            case "ZPK"         -> "P0T2B00E00"; // PIN encryption
+            case "CVK"         -> "C0T2N00E00"; // card verification (CVV/CVC)
+            case "ZEK", "DATA" -> "D0T2N00E00"; // data encryption
+            case "TAK"         -> "M3T2C00E00"; // message authentication
+            case "PVK"         -> "V2T2N00E00"; // PIN verification
+            default            -> null;
+        };
     }
 
     private static String keyTypeFamilyName(String code) {
@@ -397,7 +440,7 @@ public class KeyService {
         String scheme = blob.substring(0, 1);
         Map<String, Object> params = new HashMap<>();
         params.put("mode",         req.getMode());
-        params.put("keyType",      familyCodeForKeyType(key.getKeyType(), req.getKeyType()));
+        params.put("keyType",      wireKeyType(scheme, familyCodeForKeyType(key.getKeyType(), req.getKeyType())));
         params.put("keyScheme",    scheme);
         params.put("keyUnderLmk",  blob.substring(1));
         if (req.getIv() != null && !req.getIv().isEmpty()) {
@@ -573,7 +616,9 @@ public class KeyService {
     public List<KeySummaryResponse> list(String labelFilter, String keyTypeFilter, Long bankFilter) {
         return keyRepo.findAll().stream()
             .filter(k -> !"INVALID".equals(k.getStatus()))
-            .filter(k -> bankFilter == null || (k.getBankRecId() != null && k.getBankRecId().equals(bankFilter)))
+            // null bankRecId = global/unscoped key, visible under any bank scope;
+            // otherwise must match the requested bank.
+            .filter(k -> bankFilter == null || k.getBankRecId() == null || k.getBankRecId().equals(bankFilter))
             .filter(k -> labelFilter == null || k.getLabel().contains(labelFilter))
             .filter(k -> keyTypeFilter == null || k.getKeyType().equals(keyTypeFilter))
             .map(k -> {

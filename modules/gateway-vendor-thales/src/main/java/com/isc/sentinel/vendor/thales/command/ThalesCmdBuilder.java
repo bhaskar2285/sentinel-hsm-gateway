@@ -310,6 +310,23 @@ public final class ThalesCmdBuilder {
         String keyScheme = (String) params.getOrDefault("keyScheme", "U");
 
         StringBuilder b = new StringBuilder();
+
+        // Key Block LMK (scheme 'S'): the wire key type is always 'FFF'; the key's real
+        // purpose is carried by the TR-31 usage descriptor that follows the LMK selector.
+        // Wire: <mode> FFF S %<lmkId># <usage><algo><lenFlag><modeOfUse>00<export>00
+        // The LMK slot is parameterised (default "01") — never hard-coded.
+        if ("S".equals(keyScheme)) {
+            String lmkId      = (String) params.getOrDefault("keyBlockLmkId", "01");
+            String descriptor = (String) params.get("keyBlockDescriptor");
+            if (descriptor == null || descriptor.isBlank()) {
+                throw new IllegalArgumentException(
+                    "keyBlockDescriptor required for scheme-S key generation under the Key Block LMK");
+            }
+            b.append(mode).append("FFF").append(keyScheme)
+             .append('%').append(lmkId).append('#').append(descriptor);
+            return new HsmWireMessage(header, "A0", b.toString().getBytes(StandardCharsets.US_ASCII), null);
+        }
+
         b.append(mode).append(keyType).append(keyScheme);
 
         if ("1".equals(mode)) {
@@ -947,10 +964,11 @@ public final class ThalesCmdBuilder {
         String keyType  = (String) params.getOrDefault("keyType", "001");   // 3-digit Key Type Code
         String scheme   = (String) params.getOrDefault("scheme", "U");
         String keyHex   = ((String) params.get("keyHex")).toUpperCase();
-        // Key Length Flag (1N): 0=single, 1=double (U), 2=triple (T), 3=HMAC
-        String lenFlag  = switch (scheme) { case "U" -> "1"; case "T" -> "2"; default -> "0"; };
-        // 2-digit Key Type Code 'FF' => the 3-digit code is supplied after the ';' delimiter.
-        // Order per manual: KeyTypeCode2(FF) + KeyLengthFlag + Key(scheme+hex) + ';' + KeyTypeCode3
+
+        // Key Length Flag (Core Host Cmds, BU): 0=single, 1=double (U), 2=triple (T),
+        // 3=HMAC; 'F'=Key Block LMK (reserved). 2-digit code 'FF' => the ';'+3-digit code
+        // follows ('FFF' is the reserved 3-digit value for a Key Block key).
+        String lenFlag = switch (scheme) { case "U" -> "1"; case "T" -> "2"; case "S", "R" -> "F"; default -> "0"; };
         String body = "FF" + lenFlag + scheme + keyHex + ";" + keyType;
         return new HsmWireMessage(header, "BU", body.getBytes(StandardCharsets.US_ASCII), null);
     }

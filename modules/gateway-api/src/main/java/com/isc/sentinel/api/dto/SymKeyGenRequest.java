@@ -31,6 +31,12 @@ public class SymKeyGenRequest {
     /** LMK scheme byte. */
     private String keyScheme = "U";
 
+    /**
+     * Key Block LMK slot selector used when keyScheme = "S" (default "01").
+     * May be "00" or any installed Key Block LMK — never hard-coded downstream.
+     */
+    private String keyBlockLmkId = "01";
+
     /** "0" = key under LMK only; "1" = also wrap under ZMK and return. */
     private String mode = "0";
 

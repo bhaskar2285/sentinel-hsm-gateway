@@ -32,8 +32,8 @@ public class CryptoService {
         params.put("mode", req.getMode());
         params.put("inputFormat", req.getInputFormat());
         params.put("outputFormat", req.getOutputFormat());
-        params.put("keyType", familyCodeForKeyType(k.getKeyType()));
         String blob = k.getEncryptedBlob() == null ? "" : new String(k.getEncryptedBlob());
+        params.put("keyType", wireKeyType(blob, familyCodeForKeyType(k.getKeyType())));
         params.put("keyHex", blob);
         if (req.getIv() != null && !req.getIv().isEmpty()) {
             String sch = blob.isEmpty() ? "U" : blob.substring(0, 1);
@@ -312,7 +312,7 @@ public class CryptoService {
             .orElseThrow(() -> new IllegalArgumentException("MAC key not found"));
         String blob = blobStr(key);
         Map<String, Object> p = new HashMap<>();
-        p.put("keyType", familyCodeForKeyType(key.getKeyType()));
+        p.put("keyType", wireKeyType(blob, familyCodeForKeyType(key.getKeyType())));
         p.put("keyScheme", blob.substring(0,1)); p.put("keyHex", blob.substring(1));
         p.put("mode", req.getMode()); p.put("inputFormat", req.getInputFormat());
         p.put("algorithm", req.getAlgorithm()); p.put("padding", req.getPadding());
@@ -328,7 +328,7 @@ public class CryptoService {
             .orElseThrow(() -> new IllegalArgumentException("MAC key not found"));
         String blob = blobStr(key);
         Map<String, Object> p = new HashMap<>();
-        p.put("keyType", familyCodeForKeyType(key.getKeyType()));
+        p.put("keyType", wireKeyType(blob, familyCodeForKeyType(key.getKeyType())));
         p.put("keyScheme", blob.substring(0,1)); p.put("keyHex", blob.substring(1));
         p.put("mode", req.getMode()); p.put("inputFormat", req.getInputFormat());
         p.put("algorithm", req.getAlgorithm()); p.put("padding", req.getPadding());
@@ -448,7 +448,7 @@ public class CryptoService {
         HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
             .orElseThrow(() -> new IllegalArgumentException("key not found: " + req.getKeyId()));
         String blob = blobStr(key);
-        String keyType = req.getKeyType() != null ? req.getKeyType() : buCodeForKeyType(key.getKeyType());
+        String keyType = wireKeyType(blob, req.getKeyType() != null ? req.getKeyType() : buCodeForKeyType(key.getKeyType()));
         Map<String, Object> p = new HashMap<>();
         p.put("keyType", keyType);
         p.put("scheme", blob.substring(0,1));
@@ -673,7 +673,7 @@ public class CryptoService {
             .orElseThrow(() -> new IllegalArgumentException("MAC key not found"));
         String blob = blobStr(key);
         Map<String, Object> p = new HashMap<>();
-        p.put("keyType", familyCodeForKeyType(key.getKeyType()));
+        p.put("keyType", wireKeyType(blob, familyCodeForKeyType(key.getKeyType())));
         p.put("keyScheme", blob.substring(0,1)); p.put("keyHex", blob.substring(1));
         p.put("mode", req.getMode()); p.put("inputFormat", req.getInputFormat());
         p.put("algorithm", req.getAlgorithm()); p.put("padding", req.getPadding());
@@ -682,6 +682,13 @@ public class CryptoService {
             .op(OpCode.MAC_VERIFY_ALT).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return MacResponse.builder()
             .status(r.getStatus()).errCode(r.getErrCode()).errText(r.getErrText()).latencyMs(r.getLatencyMs()).build();
+    }
+
+    /** Key-block (LMK scheme 'S'/'R') keys present wire key type 'FFF' — purpose is in
+     *  the TR-31 descriptor. Variant keys (U/T/X/Y/Z) use their family code. */
+    private static String wireKeyType(String blob, String variantCode) {
+        return (blob != null && !blob.isEmpty() && (blob.charAt(0) == 'S' || blob.charAt(0) == 'R'))
+            ? "FFF" : variantCode;
     }
 
     private static String familyCodeForKeyType(String name) {
