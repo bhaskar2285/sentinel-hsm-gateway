@@ -66,6 +66,8 @@ public final class ThalesErrorCode {
             case "97" -> "Reserved for future use";
             case "98" -> "Master key (LMK) parity error / HSM not in run state";
             case "99" -> "Logical separator (LS) violation";
+            case "A6" -> "Invalid key usage (key type cannot perform this operation)";
+            case "A8" -> "Invalid mode of use for the key";
             default -> "Vendor error " + code;
         };
     }

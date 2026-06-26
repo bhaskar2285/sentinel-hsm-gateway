@@ -8,4 +8,6 @@ public class KeyFormComponentsResponse {
     private String scheme;
     private String keyUnderLmk;
     private String kcv;
+    /** UUID of the persisted formed key (present only when a label was supplied). */
+    private String keyId;
 }

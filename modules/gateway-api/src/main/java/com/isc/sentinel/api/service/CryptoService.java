@@ -176,6 +176,10 @@ public class CryptoService {
         p.put("pvkScheme", pvkBlob.substring(0,1)); p.put("pvkHex", pvkBlob.substring(1));
         p.put("pan", req.getPan()); p.put("pvki", req.getPvki());
         p.put("pinUnderLmk", req.getPinUnderLmk());
+        // Key Block PVK (scheme S): read key + PIN under the same LMK as the key (else err 14).
+        if ("S".equals(pvkBlob.substring(0,1)) && pvk.getLmkIdx() != null) {
+            p.put("lmkId", String.format("%02d", pvk.getLmkIdx()));
+        }
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.PVV_GEN).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return PvvGenResponse.builder().pvv((String) r.getResult().get("pvv"))
@@ -196,6 +200,13 @@ public class CryptoService {
         p.put("decimTable", req.getDecimTable());
         p.put("pinValidData", req.getPinValidData() != null ? req.getPinValidData() : pan12);
         p.put("checkLen", req.getCheckLen());
+        // LMK id: explicit override, else for a Key Block PVK (scheme 'S') derive from the
+        // stored lmkIdx so key + PIN are read under the same LMK (otherwise err 14).
+        String lmkId = req.getLmkId();
+        if (lmkId == null && "S".equals(pvkBlob.substring(0,1)) && pvk.getLmkIdx() != null) {
+            lmkId = String.format("%02d", pvk.getLmkIdx());
+        }
+        if (lmkId != null) p.put("lmkId", lmkId);
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.IBM_OFFSET_GEN).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return IbmOffsetResponse.builder().offset((String) r.getResult().get("offset"))
@@ -284,6 +295,7 @@ public class CryptoService {
         p.put("clearPin", req.getClearPin());
         p.put("pan", req.getPan());                 // BA derives the 12-digit account number
         p.put("maxPinLen", req.getMaxPinLen());
+        if (req.getLmkId() != null) p.put("lmkId", req.getLmkId());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.CLEAR_PIN_ENCRYPT).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         return PinGenResponse.builder()
@@ -420,18 +432,23 @@ public class CryptoService {
     public KeyComponentGenResponse generateKeyComponent(KeyComponentGenRequest req, String userId) {
         Map<String, Object> p = new HashMap<>();
         p.put("scheme", req.getScheme());
+        p.put("keyType", req.getKeyType());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
             .op(OpCode.KEY_COMPONENT_GEN).vendorHint(HsmVendor.THALES).params(p).userId(userId).build());
         KeyComponentGenResponse out = new KeyComponentGenResponse();
         out.setErrCode(r.getErrCode());
         out.setScheme((String) r.getResult().get("scheme"));
         out.setComponent((String) r.getResult().get("component"));
+        out.setKcv((String) r.getResult().get("kcv"));
         return out;
     }
 
-    public KeyFormComponentsResponse formKeyFromComponents(KeyFormComponentsRequest req, String userId) {
+    public KeyFormComponentsResponse formKeyFromComponents(KeyFormComponentsRequest req, String userId, Long bankRecId) {
         Map<String, Object> p = new HashMap<>();
-        p.put("keyType", req.getKeyType());
+        // A4 wire key type: Variant LMK = numeric code (000/001/…); Key Block LMK = "FFF".
+        String wireType = ("S".equals(req.getScheme()) || "R".equals(req.getScheme()))
+            ? "FFF" : buCodeForKeyType(req.getKeyType());
+        p.put("keyType", wireType);
         p.put("scheme", req.getScheme());
         p.put("components", req.getComponents());
         GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
@@ -441,14 +458,49 @@ public class CryptoService {
         out.setScheme((String) r.getResult().get("scheme"));
         out.setKeyUnderLmk((String) r.getResult().get("keyUnderLmk"));
         out.setKcv((String) r.getResult().get("kcv"));
+        // Persist the formed key when a label is supplied so it is usable (M0/M2, KCV, …).
+        if ("OK".equals(r.getStatus()) && req.getLabel() != null && !req.getLabel().isBlank()
+                && out.getKeyUnderLmk() != null && !out.getKeyUnderLmk().isEmpty()) {
+            String scheme = out.getScheme() != null ? out.getScheme() : req.getScheme();
+            String blob = scheme + out.getKeyUnderLmk();
+            boolean aes = scheme != null && (scheme.startsWith("S") || scheme.startsWith("R") || scheme.startsWith("H"));
+            int bits = "T".equals(scheme) || "S".equals(scheme) ? 192 : 128;
+            HsmKey saved = keyRepo.save(HsmKey.builder()
+                .keyUuid(UUID.randomUUID())
+                .label(req.getLabel())
+                .keyType(req.getKeyType())
+                .algo(aes ? "AES" : "3DES")
+                .keyLengthBits(bits)
+                .usage(req.getUsage())
+                .ownerUserId(userId)
+                .bankRecId(bankRecId)
+                .kcv(out.getKcv())
+                .vendorOrigin("thales")
+                .encryptedBlob(blob.getBytes(java.nio.charset.StandardCharsets.US_ASCII))
+                .status("ACTIVE")
+                .version(1)
+                .build());
+            out.setKeyId(saved.getKeyUuid().toString());
+        }
         return out;
     }
 
     public KeyCheckValueResponse getKeyCheckValue(KeyCheckValueRequest req, String userId) {
-        HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
-            .orElseThrow(() -> new IllegalArgumentException("key not found: " + req.getKeyId()));
-        String blob = blobStr(key);
-        String keyType = wireKeyType(blob, req.getKeyType() != null ? req.getKeyType() : buCodeForKeyType(key.getKeyType()));
+        String blob;
+        String keyType;
+        if (req.getKeyId() != null && !req.getKeyId().isBlank()) {
+            HsmKey key = keyRepo.findByKeyUuid(UUID.fromString(req.getKeyId()))
+                .orElseThrow(() -> new IllegalArgumentException("key not found: " + req.getKeyId()));
+            blob = blobStr(key);
+            keyType = wireKeyType(blob, req.getKeyType() != null ? req.getKeyType() : buCodeForKeyType(key.getKeyType()));
+        } else if (req.getKeyHex() != null && !req.getKeyHex().isBlank()) {
+            // Raw blob path — KCV of an unstored value (e.g. a key-block component).
+            String scheme = req.getScheme() != null ? req.getScheme() : "U";
+            blob = scheme + req.getKeyHex().toUpperCase();
+            keyType = wireKeyType(blob, req.getKeyType() != null ? buCodeForKeyType(req.getKeyType()) : "00A");
+        } else {
+            throw new IllegalArgumentException("supply keyId or keyHex");
+        }
         Map<String, Object> p = new HashMap<>();
         p.put("keyType", keyType);
         p.put("scheme", blob.substring(0,1));
@@ -706,14 +758,14 @@ public class CryptoService {
     }
 
     // BU (key check value) uses different LMK pair codes than A8/A0
+    // BU (Generate Key Check Value) needs the 3-digit key-type code matching the LMK pair
+    // the key was GENERATED under. Mirror familyCodeForKeyType for named types; pass numeric
+    // wire codes (000/001/003/402/00A…) straight through. (Earlier ZMK->001/ZPK->011 and the
+    // 00A default for numeric types pointed BU at the wrong LMK pair -> errCode 10/28.)
     private static String buCodeForKeyType(String name) {
         if (name == null) return "00A";
-        return switch (name) {
-            case "ZMK"           -> "001";
-            case "ZPK", "BDK"   -> "011";
-            case "TMK", "TPK"   -> "008";
-            case "KBPK"         -> "002";
-            default              -> "00A";
-        };
+        if (name.length() == 3 && name.chars().allMatch(c -> Character.digit(c, 16) >= 0))
+            return name;
+        return familyCodeForKeyType(name);
     }
 }

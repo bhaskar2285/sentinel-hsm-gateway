@@ -275,7 +275,8 @@ public class KeyService {
             case "CVK"         -> "C0T2N00E00"; // card verification (CVV/CVC)
             case "ZEK", "DATA" -> "D0T2N00E00"; // data encryption
             case "TAK"         -> "M3T2C00E00"; // message authentication
-            case "PVK"         -> "V2T2N00E00"; // PIN verification
+            case "PVK"         -> "V1T2N00N00"; // PIN verification — IBM 3624 offset (DE/EA/EE); usage V1, mode N
+            case "PVKV", "PVV" -> "V2T2N00N00"; // PIN verification — VISA PVV (DG/DC); usage V2, mode N
             default            -> null;
         };
     }

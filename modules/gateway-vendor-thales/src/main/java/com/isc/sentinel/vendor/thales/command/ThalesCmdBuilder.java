@@ -578,7 +578,10 @@ public final class ThalesCmdBuilder {
         String pan          = (String) params.get("pan");
         String pvki         = (String) params.getOrDefault("pvki", "1");
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
-        String body = pvkScheme + pvkHex + pinUnderLmk + pan12 + pvki;
+        // LMK id must match the LMK the PVK/PIN live under (Key Block LMK = '01'); else err 14.
+        String lmkId = (String) params.get("lmkId");
+        String body = pvkScheme + pvkHex + pinUnderLmk + pan12 + pvki
+                    + (lmkId != null ? "%" + lmkId : "");
         return new HsmWireMessage(header, "DG", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -598,8 +601,12 @@ public final class ThalesCmdBuilder {
         String pan         = (String) params.get("pan");
         String pan12 = pan.length() > 12 ? pan.substring(pan.length() - 13, pan.length() - 1) : pan;
         String pinValidData = (String) params.getOrDefault("pinValidData", pan12);
+        // Optional LMK identifier — must match the LMK the PVK/PIN live under
+        // (Key Block LMK = '01'); without it the HSM reads the PIN under the default LMK.
+        String lmkId = (String) params.get("lmkId");
         String body = pvkScheme + pvkHex + pinUnderLmk
-                    + checkLen + pan12 + decimTable.toUpperCase() + pinValidData.toUpperCase();
+                    + checkLen + pan12 + decimTable.toUpperCase() + pinValidData.toUpperCase()
+                    + (lmkId != null ? "%" + lmkId : "");
         return new HsmWireMessage(header, "DE", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -725,7 +732,10 @@ public final class ThalesCmdBuilder {
         // Account Number: 12 right-most digits, excluding the check digit
         String acct   = (String) params.getOrDefault("accountNo", params.get("pan"));
         String acct12 = acct.length() > 12 ? acct.substring(acct.length() - 13, acct.length() - 1) : acct;
-        String body = pinField + acct12;
+        // Optional LMK identifier — the PIN must be encrypted under the same LMK as the
+        // PVK that later verifies it (Key Block LMK pins reject a Variant-LMK pin, err 14).
+        String lmkId  = (String) params.get("lmkId");
+        String body = pinField + acct12 + (lmkId != null ? "%" + lmkId : "");
         return new HsmWireMessage(header, "BA", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
@@ -927,9 +937,15 @@ public final class ThalesCmdBuilder {
     // Response A3: ErrCode(2) + Scheme(1A) + Component(hex per scheme)
     // =====================================================================
 
+    // A2 — Generate a Key Component, Core Host Commands p.43
+    // Wire: KeyType(3H) + ComponentCheckFlag(1A '1'=no KCV,'2'=return KCV) + KeyScheme(1A)
+    // Response A3: ErrCode(2) + Component(scheme+hex) + [CheckValue 6H if flag '2']
     public static HsmWireMessage buildA2(HsmHeader header, Map<String, Object> params) {
-        String scheme = (String) params.getOrDefault("scheme", "U");
-        return new HsmWireMessage(header, "A2", scheme.getBytes(StandardCharsets.US_ASCII), null);
+        String keyType   = (String) params.getOrDefault("keyType", "000");
+        String checkFlag = (String) params.getOrDefault("checkFlag", "2"); // default: return KCV
+        String scheme    = (String) params.getOrDefault("scheme", "U");
+        String body = keyType + checkFlag + scheme;
+        return new HsmWireMessage(header, "A2", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 
     // =====================================================================
@@ -969,7 +985,9 @@ public final class ThalesCmdBuilder {
         // 3=HMAC; 'F'=Key Block LMK (reserved). 2-digit code 'FF' => the ';'+3-digit code
         // follows ('FFF' is the reserved 3-digit value for a Key Block key).
         String lenFlag = switch (scheme) { case "U" -> "1"; case "T" -> "2"; case "S", "R" -> "F"; default -> "0"; };
-        String body = "FF" + lenFlag + scheme + keyHex + ";" + keyType;
+        // ';'+3-digit Key Type Code, then optional ';'+Reserved('0')+Reserved('0')+KCV-Type.
+        // KCV-Type '1' = 6-digit KCV (matches real bank BU traffic and the BV 6H parser).
+        String body = "FF" + lenFlag + scheme + keyHex + ";" + keyType + ";001";
         return new HsmWireMessage(header, "BU", body.getBytes(StandardCharsets.US_ASCII), null);
     }
 

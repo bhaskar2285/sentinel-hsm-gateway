@@ -167,8 +167,9 @@ public class CryptoController {
 
     @PostMapping("/key/form-from-components")
     @PreAuthorize("hasAuthority('OP_KEY_FORM_COMPONENTS')")
-    public KeyFormComponentsResponse formKeyFromComponents(@Valid @RequestBody KeyFormComponentsRequest req, Authentication auth) {
-        return cryptoService.formKeyFromComponents(req, userOf(auth));
+    public KeyFormComponentsResponse formKeyFromComponents(@Valid @RequestBody KeyFormComponentsRequest req, Authentication auth,
+                                                           @RequestHeader(value = "X-Bank-Id", required = false) Long bankId) {
+        return cryptoService.formKeyFromComponents(req, userOf(auth), bankId);
     }
 
     @PostMapping("/key/check-value")

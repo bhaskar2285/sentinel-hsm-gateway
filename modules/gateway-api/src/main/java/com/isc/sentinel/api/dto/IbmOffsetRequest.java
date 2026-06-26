@@ -22,4 +22,10 @@ public class IbmOffsetRequest {
 
     /** Check length 1–12 (default "4"). */
     private String checkLen = "4";
+
+    /**
+     * LMK identifier for key + PIN (e.g. "01" = Key Block LMK). Null = auto-derive
+     * from the PVK's stored lmkIdx; the PIN must be encrypted under the same LMK.
+     */
+    private String lmkId;
 }

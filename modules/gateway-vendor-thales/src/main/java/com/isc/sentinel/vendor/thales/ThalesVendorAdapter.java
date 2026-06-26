@@ -115,8 +115,14 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
             }
             ThalesCmdParser.Parsed parsed = ThalesCmdParser.parse(respBody, header.length(), expectedResponse(cmd));
 
-            String status = "00".equals(parsed.errorCode()) ? "OK" : "ERROR";
-            if (!"00".equals(parsed.errorCode())) {
+            boolean warning = !"00".equals(parsed.errorCode())
+                && ThalesCmdParser.isWarning(parsed.responseCode(), parsed.errorCode());
+            boolean ok = "00".equals(parsed.errorCode()) || warning;
+            String status = ok ? "OK" : "ERROR";
+            String errText = warning
+                ? "Warning: PVK not single length (offset returned)"
+                : ThalesErrorCode.describe(parsed.errorCode());
+            if (!ok) {
                 log.warn("HSM error op={} node={} errCode={} errText={} TX={}", cmd.getOp(), node.getId(),
                     parsed.errorCode(), ThalesErrorCode.describe(parsed.errorCode()),
                     new String(wireBytes, java.nio.charset.StandardCharsets.US_ASCII).substring(2));
@@ -127,7 +133,7 @@ public class ThalesVendorAdapter implements HsmVendorAdapter, DisposableBean {
                 .hsmNodeId(String.valueOf(node.getId()))
                 .status(status)
                 .errCode(parsed.errorCode())
-                .errText(ThalesErrorCode.describe(parsed.errorCode()))
+                .errText(errText)
                 .latencyMs(System.currentTimeMillis() - start)
                 .result(parsed.fields())
                 .build();

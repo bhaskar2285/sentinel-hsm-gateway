@@ -30,6 +30,15 @@ public final class ThalesCmdParser {
     /**
      * Parse a full Thales wire response: [echoed header][respCode(2)][errCode(2)][body...].
      */
+    /**
+     * Some payShield responses return a valid result alongside a non-'00' code that is a
+     * warning, not a failure. DF '02' = "Warning PVK not single length" still returns the
+     * IBM PIN offset (Core Host Commands p.210) — exactly what real bank DE traffic shows.
+     */
+    public static boolean isWarning(String responseCode, String errorCode) {
+        return "02".equals(errorCode) && "DF".equals(responseCode);
+    }
+
     public static Parsed parse(byte[] wireBody, int headerLen, String expectedResponseCode) {
         String s = new String(wireBody, StandardCharsets.US_ASCII);
         if (s.length() < headerLen + 4) {
@@ -45,7 +54,7 @@ public final class ThalesCmdParser {
         }
 
         Map<String, Object> fields = new HashMap<>();
-        if (!"00".equals(errCode)) {
+        if (!"00".equals(errCode) && !isWarning(respCode, errCode)) {
             return new Parsed(respCode, errCode, fields);
         }
 
@@ -505,7 +514,10 @@ public final class ThalesCmdParser {
         int hex;
         try { hex = KeyScheme.keyTokenLen(s, pos - 1); }
         catch (IllegalArgumentException ex) { hex = s.length() - pos; }
-        f.put("component", s.substring(pos, Math.min(pos + hex, s.length())));
+        int end = Math.min(pos + hex, s.length());
+        f.put("component", s.substring(pos, end));
+        // Component Check Value (6 H) — present when the request used check flag '2'.
+        if (s.length() - end >= 6) f.put("kcv", s.substring(end, end + 6));
     }
 
     // =====================================================================

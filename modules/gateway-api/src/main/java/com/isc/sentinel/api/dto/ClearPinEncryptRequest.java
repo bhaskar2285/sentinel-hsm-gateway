@@ -17,4 +17,10 @@ public class ClearPinEncryptRequest {
      * to this length on the wire.
      */
     private String maxPinLen = "13";
+
+    /**
+     * LMK identifier the PIN is encrypted under (e.g. "01" = Key Block LMK). Must match
+     * the LMK of the PVK that later verifies it. Null = HSM default LMK (variant 00).
+     */
+    private String lmkId;
 }

@@ -12,7 +12,13 @@ public class KeyFormComponentsRequest {
     /** Scheme for the resulting key under LMK (default "U"). */
     private String scheme = "U";
 
-    /** List of clear components (each = schemePrefix + hex), min 2. */
+    /** Encrypted components (each = LMK-encrypted component, e.g. "U"+32H), min 2. */
     @NotEmpty
     private List<String> components;
+
+    /** Vault label for the formed key. If set, the key is persisted and a keyId returned. */
+    private String label;
+
+    /** Usage tag stored with the persisted key. */
+    private String usage = "ENC,DEC";
 }
