@@ -1,0 +1,28 @@
+# Sentinel gateway running on amd64 with the ProtectToolkit-C software HSM embedded,
+# so SunPKCS11 (in-process) can load libcryptoki.so. The jar is pre-built natively
+# (pure Java, arch-independent) and copied in — no slow emulated maven build.
+#
+# Build from the repo root:
+#   mvn -o -DskipTests package
+#   docker build --platform linux/amd64 -f docker/luna-sim/Dockerfile.gateway -t sentinel-gateway-luna:dev .
+FROM --platform=linux/amd64 eclipse-temurin:25-jre
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        procps libcap2 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/luna-sim/PTKcpsdk-7.2.3-0-x86_64.deb /tmp/
+RUN dpkg -i /tmp/PTKcpsdk-7.2.3-0-x86_64.deb; rm -f /tmp/*.deb
+
+ENV CPROVDIR=/opt/safenet/protecttoolkit7/ptk \
+    PATH=/opt/safenet/protecttoolkit7/ptk/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/safenet/protecttoolkit7/ptk/lib
+
+COPY docker/luna-sim/init-token.sh /usr/local/bin/init-token.sh
+COPY docker/luna-sim/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY modules/gateway-api/target/sentinel-hsm-gateway.jar /app/app.jar
+# Vendor JProv provider jar — added to the Spring Boot classpath via loader.path (entrypoint).
+COPY docker/luna-sim/jprov_sfnt.jar /app/jprov_sfnt.jar
+RUN chmod +x /usr/local/bin/init-token.sh /usr/local/bin/entrypoint.sh && mkdir -p /app/jwe
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

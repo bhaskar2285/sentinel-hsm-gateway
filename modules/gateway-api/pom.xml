@@ -33,6 +33,10 @@
             <artifactId>gateway-vendor-utimaco</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.isc.sentinel</groupId>
+            <artifactId>gateway-vendor-luna</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

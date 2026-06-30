@@ -42,6 +42,7 @@
         <module>modules/gateway-security</module>
         <module>modules/gateway-vendor-thales</module>
         <module>modules/gateway-vendor-utimaco</module>
+        <module>modules/gateway-vendor-luna</module>
         <module>modules/gateway-core</module>
         <module>modules/gateway-api</module>
     </modules>
@@ -76,6 +77,11 @@
             <dependency>
                 <groupId>com.isc.sentinel</groupId>
                 <artifactId>gateway-vendor-utimaco</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.isc.sentinel</groupId>
+                <artifactId>gateway-vendor-luna</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
