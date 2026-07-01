@@ -68,7 +68,19 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
         OpCode.NET_HEALTH,
         // ZMK->DEK custodian ceremony
         OpCode.KEY_FORM_COMPONENTS,
-        OpCode.KEY_IMPORT_ZMK
+        OpCode.KEY_IMPORT_ZMK,
+        // TR-31 / KBPK (X9.143 key-derivation binding, software codec — see Tr31Codec)
+        OpCode.KBPK_GEN,
+        OpCode.TR31_WRAP,
+        OpCode.TR31_UNWRAP,
+        OpCode.KEY_CHECK_VALUE,
+        OpCode.DEK_WRAP_TEST
+    );
+
+    /** Pure-software ops (Tr31Codec / clear-key KCV) that do not require a live partition. */
+    private static final Set<OpCode> SOFTWARE_OPS = Set.of(
+        OpCode.KBPK_GEN, OpCode.TR31_WRAP, OpCode.TR31_UNWRAP, OpCode.KEY_CHECK_VALUE,
+        OpCode.DEK_WRAP_TEST
     );
 
     private final LunaProviderManager luna;
@@ -91,7 +103,7 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
             return err(cmd, node, "UNSUPPORTED", "Luna (PKCS#11) cannot perform " + op
                 + " — payment primitive; route to Thales payShield");
         }
-        if (!luna.isReady()) {
+        if (!luna.isReady() && !SOFTWARE_OPS.contains(op)) {
             return err(cmd, node, "OFFLINE", "Luna provider not initialized (" + luna.describe() + ")");
         }
         Map<String, Object> p = cmd.getParams() == null ? Map.of() : cmd.getParams();
@@ -99,10 +111,15 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
             Map<String, Object> r = switch (op) {
                 case KEY_GEN                                   -> genSymmetric(p);
                 case RSA_KEY_GEN                               -> genRsa(p);
-                case DATA_ENCRYPT                              -> p.containsKey("dekBlob") ? cipherWithDek(p, Cipher.ENCRYPT_MODE) : cipher(p, Cipher.ENCRYPT_MODE);
-                case DATA_DECRYPT                              -> p.containsKey("dekBlob") ? cipherWithDek(p, Cipher.DECRYPT_MODE) : cipher(p, Cipher.DECRYPT_MODE);
+                case DATA_ENCRYPT                              -> p.containsKey("clearKeyHex") ? cipherWithClearKey(p, Cipher.ENCRYPT_MODE) : p.containsKey("dekBlob") ? cipherWithDek(p, Cipher.ENCRYPT_MODE) : cipher(p, Cipher.ENCRYPT_MODE);
+                case DATA_DECRYPT                              -> p.containsKey("clearKeyHex") ? cipherWithClearKey(p, Cipher.DECRYPT_MODE) : p.containsKey("dekBlob") ? cipherWithDek(p, Cipher.DECRYPT_MODE) : cipher(p, Cipher.DECRYPT_MODE);
                 case KEY_FORM_COMPONENTS                       -> formZmk(p);
                 case KEY_IMPORT_ZMK                            -> importDekUnderZmk(p);
+                case KEY_CHECK_VALUE                           -> kcvOfClear(p);
+                case KBPK_GEN                                  -> genKbpk(p);
+                case TR31_WRAP                                 -> tr31Wrap(p);
+                case TR31_UNWRAP                               -> tr31Unwrap(p);
+                case DEK_WRAP_TEST                             -> dekWrapTest(p);
                 case KEY_EXPORT, KEY_FORM_BLOCK                -> wrapKey(p);
                 case KEY_IMPORT_RSA_WRAPPED, KEY_TRANSLATE     -> unwrapKey(p);
                 case MAC_GEN, HMAC_GEN                         -> macGen(p);
@@ -249,6 +266,180 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
                 try { d.destroy(); } catch (Exception ignore) {}
             }
         }
+    }
+
+    // ---- TR-31 / KBPK (X9.143 key-derivation binding, software codec) -------
+
+    /** Map TR-31 version to the JCA key algorithm. */
+    private static Tr31Codec.Version tr31Version(String v) {
+        return Tr31Codec.Version.valueOf(v == null ? "D" : v.trim().toUpperCase());
+    }
+
+    /**
+     * Generate a Key Block Protection Key. Returns the clear KBPK hex so the service can persist
+     * it (the software TR-31 codec needs the clear bytes; same trust model as the clear-component
+     * ZMK ceremony). version D -> AES (keyBits 128/192/256), version B -> 3DES (128/192).
+     */
+    private Map<String, Object> genKbpk(Map<String, Object> p) {
+        Tr31Codec.Version v = tr31Version(str(p, "version", "D"));
+        int bits = intv(p, "keyBits", v == Tr31Codec.Version.D ? 256 : 128);
+        int bytes = bits / 8;
+        if (v == Tr31Codec.Version.D && !(bytes == 16 || bytes == 24 || bytes == 32))
+            throw new IllegalArgumentException("AES KBPK must be 128/192/256-bit");
+        if (v == Tr31Codec.Version.B && !(bytes == 16 || bytes == 24))
+            throw new IllegalArgumentException("3DES KBPK must be 128/192-bit");
+        byte[] kbpk = randomBytes(bytes);
+        if (v == Tr31Codec.Version.B) oddParity(kbpk);
+        Map<String, Object> r = new HashMap<>();
+        r.put("kbpkHex", hex(kbpk));
+        r.put("version", v.name());
+        r.put("keyBits", bits);
+        r.put("algorithm", v == Tr31Codec.Version.D ? "AES" : "DESede");
+        r.put("kcv", kcvSoft(new SecretKeySpec(v == Tr31Codec.Version.B ? expandDes3(kbpk, "DESede") : kbpk,
+                                           v == Tr31Codec.Version.D ? "AES" : "DESede"),
+                         v == Tr31Codec.Version.D ? "AES" : "DESede"));
+        java.util.Arrays.fill(kbpk, (byte) 0);
+        return r;
+    }
+
+    /** Wrap a clear working key into a TR-31 key block under the KBPK. */
+    private Map<String, Object> tr31Wrap(Map<String, Object> p) throws Exception {
+        Tr31Codec.Version v = tr31Version(str(p, "version", "D"));
+        byte[] kbpk = hex(require(p, "kbpkHex"));
+        byte[] workingKey = hex(require(p, "workingKeyHex"));
+        String usage = str(p, "keyUsage", "D0");      // D0 = data-encryption key
+        String mode  = str(p, "modeOfUse", "B");      // B = encrypt + decrypt
+        String exp   = str(p, "exportability", "E");  // E = exportable under a KBPK
+        // working key's own algorithm (TR-31 header algo field) — independent of the KBPK version
+        String keyAlgo = str(p, "keyAlgorithm", "AES");
+        char algoChar = "DESede".equals(keyAlgo) || "DES3".equals(keyAlgo) || "T".equalsIgnoreCase(keyAlgo) ? 'T' : 'A';
+        String header = v.name() + "0000" + pad2(usage) + algoChar + mode.charAt(0) + "00" + exp.charAt(0) + "0000";
+        int bits = workingKey.length * 8;
+        try {
+            String block = Tr31Codec.wrap(v, kbpk, header, workingKey);
+            Map<String, Object> r = new HashMap<>();
+            r.put("tr31Block", block);
+            r.put("header", block.substring(0, 16));
+            r.put("version", v.name());
+            r.put("keyAlgorithm", algoChar == 'T' ? "DESede" : "AES");
+            r.put("keyBits", bits);
+            return r;
+        } finally {
+            java.util.Arrays.fill(kbpk, (byte) 0);
+            java.util.Arrays.fill(workingKey, (byte) 0);
+        }
+    }
+
+    /** KCV of a clear key hex (encrypt a zero block, first 3 bytes). For component/key validation. */
+    private Map<String, Object> kcvOfClear(Map<String, Object> p) {
+        byte[] clear = hex(require(p, "valueHex"));
+        String algo = str(p, "algorithm", "DESede");
+        byte[] keyBytes = "DESede".equals(algo) ? expandDes3(clear, "DESede") : clear;
+        if ("DESede".equals(algo) || "DES".equals(algo)) oddParity(keyBytes);
+        Map<String, Object> r = new HashMap<>();
+        r.put("kcv", kcvSoft(new SecretKeySpec(keyBytes, algo), algo));
+        r.put("algorithm", algo);
+        r.put("keyBits", clear.length * 8);
+        java.util.Arrays.fill(clear, (byte) 0);
+        return r;
+    }
+
+    /**
+     * TEST helper — produce a {@code dekBlob} (a clear DEK encrypted under a clear ZMK) so testers
+     * can exercise /luna/dek/import without ITMX. NOT for production: real DEKs arrive pre-wrapped.
+     * Inputs: {@code components} (XOR'd to the ZMK) OR {@code zmkHex}; {@code dekHex}. The ZMK and
+     * DEK are expanded to 24-byte 3DES + odd parity to match the import's unwrap expectations.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> dekWrapTest(Map<String, Object> p) throws Exception {
+        String algo = str(p, "algorithm", "DESede");
+        byte[] zmkClear;
+        Object comps = p.get("components");
+        if (comps instanceof java.util.List<?> list && !list.isEmpty()) {
+            zmkClear = xorHex((java.util.List<String>) list);
+        } else {
+            zmkClear = hex(require(p, "zmkHex"));
+        }
+        byte[] dekClear = hex(require(p, "dekHex"));
+        byte[] zmk = expandDes3(zmkClear, algo);
+        byte[] dek = expandDes3(dekClear, algo);
+        if ("DESede".equals(algo) || "DES".equals(algo)) { oddParity(zmk); oddParity(dek); }
+        try {
+            // dekBlob = ECB-encrypt(ZMK, DEK), no padding — the form /luna/dek/import unwraps.
+            Cipher c = Cipher.getInstance(algo + "/ECB/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(zmk, algo));
+            byte[] blob = c.doFinal(dek);
+            Map<String, Object> r = new HashMap<>();
+            r.put("dekBlob", hex(blob));
+            r.put("zmkKcv", kcvSoft(new SecretKeySpec(zmk, algo), algo));
+            r.put("dekKcv", kcvSoft(new SecretKeySpec(dek, algo), algo));
+            r.put("algorithm", algo);
+            return r;
+        } finally {
+            java.util.Arrays.fill(zmk, (byte) 0);
+            java.util.Arrays.fill(dek, (byte) 0);
+            java.util.Arrays.fill(zmkClear, (byte) 0);
+            java.util.Arrays.fill(dekClear, (byte) 0);
+        }
+    }
+
+    /** Encrypt/decrypt a block under a clear key supplied directly (used after a TR-31 unwrap). */
+    private Map<String, Object> cipherWithClearKey(Map<String, Object> p, int mode) throws Exception {
+        byte[] clear = hex(require(p, "clearKeyHex"));
+        String algo = str(p, "algorithm", "AES");
+        String xform = str(p, "transformation", algo + "/ECB/NoPadding");
+        byte[] data = hex(require(p, "data"));
+        byte[] keyBytes = "DESede".equals(algo) ? expandDes3(clear, "DESede") : clear;
+        SecretKey key = new SecretKeySpec(keyBytes, algo);
+        try {
+            Cipher c = Cipher.getInstance(xform);
+            byte[] iv = null;
+            boolean needsIv = xform.contains("/CBC") || xform.contains("/CTR");
+            if (needsIv) {
+                int blk = "DESede".equals(algo) ? 8 : 16;
+                iv = (mode == Cipher.ENCRYPT_MODE)
+                    ? (p.get("iv") != null ? hex(str(p, "iv", null)) : randomBytes(blk))
+                    : hex(require(p, "iv"));
+                c.init(mode, key, new IvParameterSpec(iv));
+            } else {
+                c.init(mode, key);
+            }
+            byte[] out = c.doFinal(data);
+            Map<String, Object> r = new HashMap<>();
+            if (mode == Cipher.ENCRYPT_MODE) {
+                r.put("ciphertext", hex(out));
+                if (iv != null) r.put("iv", hex(iv));
+            } else {
+                r.put("plaintext", hex(out));
+            }
+            r.put("transformation", xform);
+            return r;
+        } finally {
+            java.util.Arrays.fill(clear, (byte) 0);
+            java.util.Arrays.fill(keyBytes, (byte) 0);
+        }
+    }
+
+    /** Unwrap and authenticate a TR-31 key block under the KBPK; returns the clear working key. */
+    private Map<String, Object> tr31Unwrap(Map<String, Object> p) throws Exception {
+        byte[] kbpk = hex(require(p, "kbpkHex"));
+        String block = require(p, "tr31Block").trim();
+        try {
+            Tr31Codec.Unwrapped u = Tr31Codec.unwrap(kbpk, block);
+            Map<String, Object> r = new HashMap<>();
+            r.put("workingKeyHex", hex(u.key));
+            r.put("header", u.header);
+            r.put("version", String.valueOf(block.charAt(0)));
+            return r;
+        } finally {
+            java.util.Arrays.fill(kbpk, (byte) 0);
+        }
+    }
+
+    private static String pad2(String s) {
+        String t = s == null ? "" : s.trim();
+        if (t.length() >= 2) return t.substring(0, 2);
+        return (t + "00").substring(0, 2);
     }
 
     // ---- ops ---------------------------------------------------------------
@@ -430,6 +621,18 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
             c.init(Cipher.ENCRYPT_MODE, key);
             byte[] out = c.doFinal(new byte[blk]);
             return hex(out).substring(0, 6);
+        } catch (Exception e) {
+            return "------";
+        }
+    }
+
+    /** KCV without the HSM provider (default JCE) — for software ops (no partition needed). */
+    private String kcvSoft(SecretKey key, String algo) {
+        try {
+            int blk = "DESede".equals(algo) ? 8 : 16;
+            Cipher c = Cipher.getInstance(algo + "/ECB/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, key);
+            return hex(c.doFinal(new byte[blk])).substring(0, 6);
         } catch (Exception e) {
             return "------";
         }

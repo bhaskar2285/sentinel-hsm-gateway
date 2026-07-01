@@ -85,7 +85,7 @@ public class AuthService {
             .sessionToken(token)
             .ipAddress(ip)
             .userAgent(userAgent)
-            .expiresAt(LocalDateTime.now().plusHours(12))
+            .expiresAt(LocalDateTime.now().plusHours(1))
             .build();
         sessionRepo.save(session);
 

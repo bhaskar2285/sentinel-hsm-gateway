@@ -74,5 +74,11 @@ public enum OpCode {
     PIN_MAILER_PRINT,            // Thales PE/PF — Print PIN / Solicitation Data
     PIN_MIGRATE_LMK,             // Thales BG/BH — Translate PIN from Old LMK to New LMK
     DUKPT_PIN_TRANSLATE,         // Thales G0/G1 — Translate PIN DUKPT → ZPK / DUKPT
-    DUKPT_PIN_VERIFY             // Thales GO/GP — Verify PIN (DUKPT BDK + PVK)
+    DUKPT_PIN_VERIFY,            // Thales GO/GP — Verify PIN (DUKPT BDK + PVK)
+
+    // Luna TR-31 / KBPK (X9.143 key-derivation binding, software codec)
+    KBPK_GEN,                    // Generate a Key Block Protection Key (AES/3DES)
+    TR31_WRAP,                   // Wrap a working key into a TR-31 key block under a KBPK
+    TR31_UNWRAP,                 // Unwrap (and authenticate) a TR-31 key block under a KBPK
+    DEK_WRAP_TEST                // TEST helper: wrap a clear DEK under a clear ZMK (produces dekBlob)
 }

@@ -37,6 +37,14 @@ server:
     key-alias: ${TLS_KEY_ALIAS:sentinel-gateway}
     # Restrict to modern protocols. TLS 1.2 floor, 1.3 preferred.
     enabled-protocols: ${TLS_PROTOCOLS:TLSv1.3,TLSv1.2}
+    # Mutual TLS: require a connecting app to present a client cert whose issuer is
+    # in the trust-store. "need" = mTLS mandatory (reject unauthenticated peers),
+    # "want" = optional, "none" = server-auth only. This encrypts AND authenticates
+    # the entire header+payload on the wire — the strongest protection for the header.
+    client-auth: ${TLS_CLIENT_AUTH:none}
+    trust-store: ${TLS_TRUSTSTORE:/app/certs/sentinel-truststore.p12}
+    trust-store-password: ${TLS_TRUSTSTORE_PASSWORD:}
+    trust-store-type: ${TLS_TRUSTSTORE_TYPE:PKCS12}
 
 management:
   endpoints:

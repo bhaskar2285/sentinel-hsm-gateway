@@ -1,10 +1,14 @@
 package com.isc.sentinel.api.jwe;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -14,17 +18,29 @@ import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
+// Must run BEFORE the Spring Security filter chain (order -100): the auth token can
+// ride INSIDE the encrypted envelope, so the body must be decrypted and headers
+// overlaid before security evaluates the request. Highest precedence also makes this
+// the outermost filter, so response-body capture/re-encryption wraps everything.
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class JweFilter extends OncePerRequestFilter {
 
     private static final String HEADER_JWE_FLAG = "X-JWE";
     private static final String HEADER_CLIENT_PUBLIC_KEY = "X-Client-Public-Key";
+    // Opt-in: the JWE plaintext is an envelope {"headers":{...},"body":<json>} so
+    // sensitive headers (Authorization, X-Bank-Id) are encrypted with the payload.
+    private static final String HEADER_JWE_ENCLOSED = "X-JWE-Headers";
     private static final String CONTENT_TYPE_JOSE = "application/jose+json";
     private static final String CONTENT_TYPE_JSON = "application/json";
 
     private final JweKeyHolder keyHolder;
+    private final ObjectMapper mapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -42,7 +58,31 @@ public class JweFilter extends OncePerRequestFilter {
             return;
         }
 
-        JweRequestWrapper wrappedRequest = new JweRequestWrapper(request, plainBody);
+        // When the client encloses headers, the decrypted plaintext is an envelope
+        // {"headers":{...},"body":<original request json>}. Split it: overlay the
+        // headers onto the request, forward only the body downstream.
+        Map<String, String> headerOverlay = Map.of();
+        if ("true".equalsIgnoreCase(request.getHeader(HEADER_JWE_ENCLOSED)) && plainBody.length > 0) {
+            try {
+                JsonNode env = mapper.readTree(plainBody);
+                JsonNode headers = env.get("headers");
+                JsonNode body = env.get("body");
+                if (headers != null && headers.isObject() && body != null) {
+                    Map<String, String> overlay = new LinkedHashMap<>();
+                    for (Iterator<String> it = headers.fieldNames(); it.hasNext(); ) {
+                        String name = it.next();
+                        overlay.put(name, headers.get(name).asText());
+                    }
+                    headerOverlay = overlay;
+                    plainBody = mapper.writeValueAsBytes(body);
+                }
+            } catch (Exception e) {
+                sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Malformed JWE header envelope");
+                return;
+            }
+        }
+
+        JweRequestWrapper wrappedRequest = new JweRequestWrapper(request, plainBody, headerOverlay);
         JweResponseWrapper wrappedResponse = new JweResponseWrapper(response);
 
         chain.doFilter(wrappedRequest, wrappedResponse);

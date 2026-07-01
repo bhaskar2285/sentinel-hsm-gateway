@@ -38,12 +38,38 @@ public class SessionTokenAuthFilter extends OncePerRequestFilter {
           AND expires_at > NOW()
         """;
 
+    // Sliding expiration: extend a valid session to NOW()+1h on activity, but only when
+    // it is within the last few minutes (caps the window to ~1h of *inactivity* while
+    // avoiding a DB write on every request from an active session).
+    private static final String SQL_TOUCH = """
+        UPDATE isc_sam_session
+        SET expires_at = NOW() + INTERVAL '1 hour'
+        WHERE session_token = ?
+          AND record_status = 'Y'
+          AND logout_at IS NULL
+          AND expires_at > NOW()
+          AND expires_at < NOW() + INTERVAL '55 minutes'
+        """;
+
     private final JdbcTemplate jdbc;
     private final RbacAuthorityResolver authorities;
 
     public SessionTokenAuthFilter(JdbcTemplate jdbc, RbacAuthorityResolver authorities) {
         this.jdbc = jdbc;
         this.authorities = authorities;
+    }
+
+    /**
+     * Authenticate ERROR dispatches too. By default OncePerRequestFilter skips the
+     * internal /error re-dispatch that Spring performs after an unhandled exception;
+     * with the filter skipped the request reaches the authenticated /error endpoint
+     * unauthenticated and returns 401 — making every 500 look like a session logout.
+     * Returning false keeps the session authenticated on the error dispatch so the
+     * real status code (400/500) is returned.
+     */
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false;
     }
 
     @Override
@@ -62,6 +88,7 @@ public class SessionTokenAuthFilter extends OncePerRequestFilter {
                     authentication.setDetails(
                         new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    touch(token);   // sliding expiration — keep active sessions alive
                 }
             }
         }
@@ -84,6 +111,15 @@ public class SessionTokenAuthFilter extends OncePerRequestFilter {
             return jdbc.queryForObject(SQL_LOOKUP, Long.class, token);
         } catch (EmptyResultDataAccessException e) {
             return null; // unknown / expired / logged-out token -> stays unauthenticated
+        }
+    }
+
+    /** Sliding expiration — refresh a valid session's expiry on activity. Best-effort. */
+    private void touch(String token) {
+        try {
+            jdbc.update(SQL_TOUCH, token);
+        } catch (Exception ignore) {
+            // never block the request on a touch failure
         }
     }
 }
