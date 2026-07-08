@@ -20,9 +20,3 @@ certs/
 *.pem
 *.key
 jwe-key*.der
-
-# Probe/audit scratch — contain live PANs/PINs, never commit
-probe_all.py
-Sentinel-HSM-Probes*.ps1
-WIRE_FINDINGS_TTB.md
-TTB KEyblock audits.txt
