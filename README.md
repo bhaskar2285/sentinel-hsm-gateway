@@ -1,6 +1,6 @@
 # sentinel-hsm-gateway
 
-Multi-vendor HSM gateway. Spring Boot 3.5, Java 25, Postgres 16.
+Multi-vendor HSM gateway. Spring Boot 4.1, Java 25, Postgres 16.
 
 ## Purpose
 

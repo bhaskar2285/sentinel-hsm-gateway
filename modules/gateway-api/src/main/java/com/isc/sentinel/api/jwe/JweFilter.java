@@ -40,7 +40,10 @@ public class JweFilter extends OncePerRequestFilter {
     private static final String CONTENT_TYPE_JSON = "application/json";
 
     private final JweKeyHolder keyHolder;
-    private final ObjectMapper mapper;
+    // Constructed directly, not injected: Spring Boot 4's default JSON stack is Jackson 3
+    // (no Jackson 2 ObjectMapper bean is auto-configured); this is only used internally
+    // to split the {"headers":{...},"body":{...}} envelope, not for app-wide serialization.
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
