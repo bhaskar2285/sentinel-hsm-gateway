@@ -74,7 +74,9 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
         OpCode.TR31_WRAP,
         OpCode.TR31_UNWRAP,
         OpCode.KEY_CHECK_VALUE,
-        OpCode.DEK_WRAP_TEST
+        OpCode.DEK_WRAP_TEST,
+        // DEK generate under ZMK
+        OpCode.KEY_GEN_DEK
     );
 
     /** Pure-software ops (Tr31Codec / clear-key KCV) that do not require a live partition. */
@@ -120,6 +122,7 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
                 case TR31_WRAP                                 -> tr31Wrap(p);
                 case TR31_UNWRAP                               -> tr31Unwrap(p);
                 case DEK_WRAP_TEST                             -> dekWrapTest(p);
+                case KEY_GEN_DEK                               -> genDekUnderZmk(p);
                 case KEY_EXPORT, KEY_FORM_BLOCK                -> wrapKey(p);
                 case KEY_IMPORT_RSA_WRAPPED, KEY_TRANSLATE     -> unwrapKey(p);
                 case MAC_GEN, HMAC_GEN                         -> macGen(p);
@@ -222,6 +225,55 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
         r.put("algorithm", dekAlgo);
         r.put("kcv", kcv((SecretKey) dek, dekAlgo)); // KCV proves the unwrap produced the expected key
         return r;
+    }
+
+    /**
+     * Generate a fresh random DEK and return it already wrapped under the ZMK, so it slots into the
+     * same encrypt/decrypt path as an imported DEK (blob unwrapped in-HSM per op). The clear DEK
+     * exists only momentarily in this host method (same trust model as the ZMK ceremony) — it is
+     * encrypted under the ZMK inside the HSM and zeroized here; only the ciphertext blob is returned.
+     */
+    private Map<String, Object> genDekUnderZmk(Map<String, Object> p) throws Exception {
+        String zmkLabel = require(p, "zmkLabel");
+        String algo = str(p, "algorithm", "DESede");
+        Key zmk = luna.keyStore().getKey(zmkLabel, null);
+        if (zmk == null) throw new IllegalArgumentException("no ZMK for label " + zmkLabel);
+
+        int bytes = "AES".equals(algo) ? intv(p, "keyBits", 256) / 8 : 24; // DESede = triple-length
+        byte[] clear = randomBytes(bytes);
+        if ("DESede".equals(algo) || "DES".equals(algo)) oddParity(clear); // SW-HSM enforces DES parity on unwrap
+        try {
+            String wrapAlgo = "AES".equals(algo) ? "AES/ECB/NoPadding" : "DESede/ECB/NoPadding";
+            Cipher c = Cipher.getInstance(wrapAlgo, luna.provider());
+            c.init(Cipher.ENCRYPT_MODE, zmk);                 // DEK-under-ZMK == the wrapped blob
+            byte[] blob = c.doFinal(clear);
+            Map<String, Object> r = new HashMap<>();
+            r.put("dekBlob", hex(blob));
+            r.put("algorithm", algo);
+            r.put("kcv", kcv(new SecretKeySpec(clear, algo), algo));
+            return r;
+        } finally {
+            java.util.Arrays.fill(clear, (byte) 0); // zeroize host copy
+        }
+    }
+
+    /**
+     * KCV of a clear key value (e.g. a single ZMK custodian component) — encrypt a zero block under
+     * the key and take the leading 6 hex. Applies the same 2-key→3-key expansion and DES parity as
+     * the ceremony so a component's KCV matches its contribution to the formed key.
+     */
+    private Map<String, Object> kcvOfClear(Map<String, Object> p) throws Exception {
+        String algo = str(p, "algorithm", "DESede");
+        byte[] clear = expandDes3(hex(require(p, "valueHex")), algo);
+        if ("DESede".equals(algo) || "DES".equals(algo)) oddParity(clear);
+        try {
+            Map<String, Object> r = new HashMap<>();
+            r.put("kcv", kcv(new SecretKeySpec(clear, algo), algo));
+            r.put("algorithm", algo);
+            return r;
+        } finally {
+            java.util.Arrays.fill(clear, (byte) 0);
+        }
     }
 
     /**
@@ -328,20 +380,6 @@ public class LunaVendorAdapter implements HsmVendorAdapter {
             java.util.Arrays.fill(kbpk, (byte) 0);
             java.util.Arrays.fill(workingKey, (byte) 0);
         }
-    }
-
-    /** KCV of a clear key hex (encrypt a zero block, first 3 bytes). For component/key validation. */
-    private Map<String, Object> kcvOfClear(Map<String, Object> p) {
-        byte[] clear = hex(require(p, "valueHex"));
-        String algo = str(p, "algorithm", "DESede");
-        byte[] keyBytes = "DESede".equals(algo) ? expandDes3(clear, "DESede") : clear;
-        if ("DESede".equals(algo) || "DES".equals(algo)) oddParity(keyBytes);
-        Map<String, Object> r = new HashMap<>();
-        r.put("kcv", kcvSoft(new SecretKeySpec(keyBytes, algo), algo));
-        r.put("algorithm", algo);
-        r.put("keyBits", clear.length * 8);
-        java.util.Arrays.fill(clear, (byte) 0);
-        return r;
     }
 
     /**

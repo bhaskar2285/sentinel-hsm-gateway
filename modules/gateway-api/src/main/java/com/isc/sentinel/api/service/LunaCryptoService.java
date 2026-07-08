@@ -2,10 +2,12 @@ package com.isc.sentinel.api.service;
 
 import com.isc.sentinel.api.dto.LunaDataRequest;
 import com.isc.sentinel.api.dto.LunaDataResponse;
+import com.isc.sentinel.api.dto.LunaDekGenRequest;
 import com.isc.sentinel.api.dto.LunaDekImportRequest;
 import com.isc.sentinel.api.dto.LunaDekWrapTestRequest;
 import com.isc.sentinel.api.dto.LunaDekWrapTestResponse;
 import com.isc.sentinel.api.dto.LunaExportRequest;
+import com.isc.sentinel.api.dto.LunaExportResponse;
 import com.isc.sentinel.api.dto.LunaKbpkRequest;
 import com.isc.sentinel.api.dto.LunaKcvRequest;
 import com.isc.sentinel.api.dto.LunaKeyResponse;
@@ -114,6 +116,82 @@ public class LunaCryptoService {
                 .build());
             out.setKeyId(saved.getKeyUuid().toString());
         }
+        return out;
+    }
+
+    /** Generate a fresh DEK in-HSM (wrapped under the ZMK) and persist its blob. */
+    public LunaKeyResponse generateDek(LunaDekGenRequest req, String userId, Long bankRecId) {
+        HsmKey zmk = keyRepo.findByKeyUuid(UUID.fromString(req.getZmkKeyId()))
+            .orElseThrow(() -> new IllegalArgumentException("ZMK not found: " + req.getZmkKeyId()));
+
+        Map<String, Object> p = new HashMap<>();
+        p.put("zmkLabel", zmk.getLabel());
+        p.put("algorithm", req.getAlgorithm());
+        if (req.getKeyBits() != null) p.put("keyBits", req.getKeyBits());
+        GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
+            .op(OpCode.KEY_GEN_DEK).vendorHint(HsmVendor.LUNA).params(p).userId(userId).build());
+
+        LunaKeyResponse out = new LunaKeyResponse();
+        out.setErrCode(r.getErrCode());
+        out.setErrText(r.getErrText());
+        out.setKcv((String) r.getResult().get("kcv"));
+        if ("OK".equals(r.getStatus())) {
+            String dekBlob = (String) r.getResult().get("dekBlob");
+            out.setDekBlob(dekBlob); // surface the wrapped block so it can be exported / re-imported
+            HsmKey saved = keyRepo.save(HsmKey.builder()
+                .keyUuid(UUID.randomUUID())
+                .label(req.getLabel())
+                .keyType("DATA")
+                .algo(req.getAlgorithm())
+                .keyLengthBits(dekBlob.length() / 2 * 8)
+                .usage("ENC,DEC")
+                .ownerUserId(userId)
+                .bankRecId(bankRecId)
+                .kcv(out.getKcv())
+                .vendorOrigin("luna")
+                .wrapKeyId(zmk.getId())
+                .encryptedBlob(dekBlob.getBytes(StandardCharsets.US_ASCII))
+                .status("ACTIVE")
+                .version(1)
+                .build());
+            out.setKeyId(saved.getKeyUuid().toString());
+        }
+        return out;
+    }
+
+    /** Export a stored DEK as its ZMK-wrapped key block (hex) — the blob you can re-import or deliver. */
+    public LunaExportResponse exportDek(String keyId) {
+        HsmKey dek = keyRepo.findByKeyUuid(UUID.fromString(keyId))
+            .orElseThrow(() -> new IllegalArgumentException("DEK not found: " + keyId));
+        if (dek.getEncryptedBlob() == null || dek.getWrapKeyId() == null)
+            throw new IllegalArgumentException("key " + keyId + " is not a Luna ZMK-wrapped DEK");
+
+        LunaExportResponse out = new LunaExportResponse();
+        out.setKeyId(keyId);
+        out.setLabel(dek.getLabel());
+        out.setAlgorithm(dek.getAlgo());
+        out.setKcv(dek.getKcv());
+        out.setDekBlob(new String(dek.getEncryptedBlob(), StandardCharsets.US_ASCII));
+        keyRepo.findById(dek.getWrapKeyId()).ifPresent(zmk -> {
+            out.setZmkKeyId(zmk.getKeyUuid().toString());
+            out.setZmkLabel(zmk.getLabel());
+        });
+        out.setErrCode("00");
+        return out;
+    }
+
+    /** KCV of a clear key value (advisory per-component check during the ZMK ceremony). */
+    public LunaKeyResponse kcv(LunaKcvRequest req, String userId) {
+        Map<String, Object> p = new HashMap<>();
+        p.put("valueHex", req.getValueHex());
+        p.put("algorithm", req.getAlgorithm());
+        GatewayResponse r = dispatcher.dispatch(GatewayCommand.builder()
+            .op(OpCode.KEY_CHECK_VALUE).vendorHint(HsmVendor.LUNA).params(p).userId(userId).build());
+
+        LunaKeyResponse out = new LunaKeyResponse();
+        out.setErrCode(r.getErrCode());
+        out.setErrText(r.getErrText());
+        out.setKcv((String) r.getResult().get("kcv"));
         return out;
     }
 

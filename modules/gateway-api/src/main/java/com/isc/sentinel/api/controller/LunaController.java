@@ -2,10 +2,12 @@ package com.isc.sentinel.api.controller;
 
 import com.isc.sentinel.api.dto.LunaDataRequest;
 import com.isc.sentinel.api.dto.LunaDataResponse;
+import com.isc.sentinel.api.dto.LunaDekGenRequest;
 import com.isc.sentinel.api.dto.LunaDekImportRequest;
 import com.isc.sentinel.api.dto.LunaDekWrapTestRequest;
 import com.isc.sentinel.api.dto.LunaDekWrapTestResponse;
 import com.isc.sentinel.api.dto.LunaExportRequest;
+import com.isc.sentinel.api.dto.LunaExportResponse;
 import com.isc.sentinel.api.dto.LunaKbpkRequest;
 import com.isc.sentinel.api.dto.LunaKcvRequest;
 import com.isc.sentinel.api.dto.LunaKeyResponse;
@@ -19,6 +21,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -61,6 +64,18 @@ public class LunaController {
     public LunaDekWrapTestResponse dekWrapTest(@Valid @RequestBody LunaDekWrapTestRequest req,
                                                Authentication auth) {
         return luna.dekWrapTest(req, userOf(auth));
+    }
+
+    @PostMapping("/dek/generate")
+    public LunaKeyResponse generateDek(@Valid @RequestBody LunaDekGenRequest req,
+                                       @RequestHeader(value = "X-Bank-Id", required = false) Long bankId,
+                                       Authentication auth) {
+        return luna.generateDek(req, userOf(auth), bankId);
+    }
+
+    @GetMapping("/dek/{keyId}/export")
+    public LunaExportResponse exportDek(@PathVariable String keyId) {
+        return luna.exportDek(keyId);
     }
 
     @PostMapping("/data/encrypt")

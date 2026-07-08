@@ -1,0 +1,38 @@
+# Self-contained variant of Dockerfile.gateway: builds the jar in a Maven stage
+# (no host Maven/JDK needed), then assembles it onto the proven ProtectToolkit-C
+# software-HSM runtime. Host is amd64, so no --platform needed.
+#   docker build -f docker/luna-sim/Dockerfile.gateway.build -t sentinel-gateway-luna:dev .
+# syntax=docker/dockerfile:1.7
+FROM eclipse-temurin:25-jdk AS build
+WORKDIR /src
+COPY pom.xml ./
+COPY modules ./modules
+RUN --mount=type=cache,target=/root/.m2 \
+    apt-get update && apt-get install -y --no-install-recommends maven && rm -rf /var/lib/apt/lists/* && \
+    mvn -B -T 1C -DskipTests package
+
+FROM eclipse-temurin:25-jre
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        procps libcap2 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ProtectToolkit-C SW emulation: ships libctsw.so, the libcryptoki.so symlink, and
+# the ctconf/ctstat/ctkmu tools. (PTKcprt is deliberately NOT installed — it needs a
+# hardware access provider that breaks dpkg.)
+COPY docker/luna-sim/PTKcpsdk-7.2.3-0-x86_64.deb /tmp/
+RUN dpkg -i /tmp/PTKcpsdk-7.2.3-0-x86_64.deb; rm -f /tmp/*.deb
+
+ENV CPROVDIR=/opt/safenet/protecttoolkit7/ptk \
+    PATH=/opt/safenet/protecttoolkit7/ptk/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/safenet/protecttoolkit7/ptk/lib
+
+COPY docker/luna-sim/init-token.sh /usr/local/bin/init-token.sh
+COPY docker/luna-sim/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --from=build /src/modules/gateway-api/target/sentinel-hsm-gateway.jar /app/app.jar
+# Vendor JProv provider jar — joins the Spring Boot classpath via loader.path (entrypoint).
+COPY docker/luna-sim/jprov_sfnt.jar /app/jprov_sfnt.jar
+RUN sed -i 's/\r$//' /usr/local/bin/init-token.sh /usr/local/bin/entrypoint.sh && \
+    chmod +x /usr/local/bin/init-token.sh /usr/local/bin/entrypoint.sh && \
+    mkdir -p /app/jwe
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

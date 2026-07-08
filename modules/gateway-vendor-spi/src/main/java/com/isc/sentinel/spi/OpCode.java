@@ -47,6 +47,7 @@ public enum OpCode {
     KEY_COMPONENT_GEN,           // Thales A2/A3 — Generate key component (clear)
     KEY_FORM_COMPONENTS,         // Thales A4/A5 — Form key from XOR'd components
     KEY_CHECK_VALUE,             // Thales BU/BV — Generate key check value
+    KEY_GEN_DEK,                 // Luna — generate a DEK in-HSM, wrapped under a ZMK
 
     // Diagnostics
     HSM_ECHO,                    // Thales B2/B3 — Echo / loopback

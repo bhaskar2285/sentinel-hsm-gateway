@@ -124,9 +124,17 @@ public class LunaProviderManager {
      */
     public Key unwrapKey(Key wrappingKey, String wrapAlgo, byte[] wrapped, String keyAlgo) throws Exception {
         if (wrappingKeyStore != null) {
-            return (Key) wrappingKeyStore.getClass()
-                .getMethod("unwrapKey", Key.class, String.class, byte[].class, String.class)
-                .invoke(wrappingKeyStore, wrappingKey, wrapAlgo, wrapped, keyAlgo);
+            try {
+                return (Key) wrappingKeyStore.getClass()
+                    .getMethod("unwrapKey", Key.class, String.class, byte[].class, String.class)
+                    .invoke(wrappingKeyStore, wrappingKey, wrapAlgo, wrapped, keyAlgo);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                // Surface the real vendor cause (e.g. CKR_KEY_FUNCTION_NOT_PERMITTED)
+                // instead of an opaque InvocationTargetException with a null message.
+                Throwable cause = ite.getTargetException();
+                if (cause instanceof Exception ex) throw ex;
+                throw new RuntimeException(cause);
+            }
         }
         Cipher c = Cipher.getInstance(keyAlgo, provider());
         c.init(Cipher.UNWRAP_MODE, wrappingKey);
